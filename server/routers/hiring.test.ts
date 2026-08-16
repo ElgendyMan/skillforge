@@ -92,3 +92,15 @@ describe("application status contract", () => {
     expect(canTransitionApplicationStatus("")) .toBe(false);
   });
 });
+
+describe("ownership fail-closed behavior", () => {
+  it("rejects an attempt identifier that is not owned by the authenticated candidate", async () => {
+    const candidate = appRouter.createCaller(createContext("candidate"));
+    await expect(candidate.candidate.attempts.get({ attemptId: 9_999_999 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects review-detail access for a non-company caller before attempt data is exposed", async () => {
+    const candidate = appRouter.createCaller(createContext("candidate"));
+    await expect(candidate.company.attempts.detail({ attemptId: 9_999_999 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});

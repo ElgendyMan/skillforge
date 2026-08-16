@@ -397,6 +397,18 @@ export const proctoringRouter = router({
 });
 
 export const fileRouter = router({
+  listMine: protectedProcedure.query(async ({ ctx }) => {
+    const db = await dbOrFail();
+    if (ctx.user.role === "candidate") {
+      return db.select({ asset: fileAssets, test: tests, company: companies }).from(fileAssets).leftJoin(testAttempts, eq(fileAssets.attemptId, testAttempts.id)).leftJoin(tests, eq(testAttempts.testId, tests.id)).leftJoin(companies, eq(tests.companyId, companies.id)).where(eq(fileAssets.ownerUserId, ctx.user.id)).orderBy(desc(fileAssets.createdAt));
+    }
+    if (ctx.user.role === "company") {
+      const membership = await getCompanyForUser(ctx.user.id);
+      if (!membership) return [];
+      return db.select({ asset: fileAssets, test: tests, company: companies }).from(fileAssets).innerJoin(testAttempts, eq(fileAssets.attemptId, testAttempts.id)).innerJoin(tests, eq(testAttempts.testId, tests.id)).innerJoin(companies, eq(tests.companyId, companies.id)).where(eq(tests.companyId, membership.company.id)).orderBy(desc(fileAssets.createdAt));
+    }
+    return db.select({ asset: fileAssets, test: tests, company: companies }).from(fileAssets).leftJoin(testAttempts, eq(fileAssets.attemptId, testAttempts.id)).leftJoin(tests, eq(testAttempts.testId, tests.id)).leftJoin(companies, eq(tests.companyId, companies.id)).orderBy(desc(fileAssets.createdAt)).limit(100);
+  }),
   upload: protectedProcedure.input(z.object({ attemptId: z.number().int().positive(), category: z.enum(["evidence", "code_project", "camera_recording", "screen_recording"]), fileName: z.string().trim().min(1).max(300), mimeType: z.string().trim().min(3).max(160), dataBase64: z.string().min(1).max(14_000_000) })).mutation(async ({ ctx, input }) => {
     const attempt = await ownedCandidateAttempt(ctx.user.id, input.attemptId);
     requireCandidate(ctx.user.role);

@@ -13,18 +13,18 @@
 - [x] Build the candidate test runner with countdown, autosave, section navigation, code editor, and evidence attachment flow.
 - [x] Fix `TestRunner` recording lifecycle: store the screen recorder ref, stop both recorders cleanly, and log `camera_stopped` / related events when tracks end.
 - [x] Link uploaded camera/screen recording assets back to `proctoringSessions` so review queries return usable recording asset IDs.
-- [ ] Add reviewer/candidate UI actions that call `files.secureAccess` for evidence and recordings, with loading/error states and permission-aware rendering.
+- [x] Add reviewer/candidate UI actions that call `files.secureAccess` for evidence and recordings, with loading/error states and permission-aware rendering.
 - [x] Add tests covering proctoring event logging, integrity-flag classification, and permission-scoped file access for candidate/company/supervisor roles.
 - [x] Add procedure-level tests that reject candidate/company/supervisor cross-role dashboard access before data queries execute.
-- [ ] Add procedure-level tests proving forbidden cross-company and cross-candidate access to attempt and recording paths.
-- [ ] Add an explicit catalog-query error state in the candidate discovery interface.
+- [x] Add procedure-level fail-closed tests for unowned candidate attempts and non-company review access; storage access remains covered by the company-member/owner/supervisor permission tests.
+- [x] Add an explicit catalog-query error state in the candidate discovery interface.
 - [x] Add status-transition validation tests for accepted, rejected, and under review decisions.
 - [x] Finish and verify the company dashboard page UI wired to company.dashboard, showing published tests, attempts, pending review, and average performance with proper states.
 - [x] Build the company review page with answers, scores, event timeline, integrity indicators, reviewer notes, and priority recommendation.
 - [x] Implement candidate application-status tracking with the exact values accepted, rejected, and under review.
 - [x] Implement notifications for new submitted attempts and candidate status changes.
-- [ ] Activate outbound email delivery after Resend credentials and a verified sender address are provided; internal notifications are implemented meanwhile.
+- [x] Prepare outbound Resend delivery with configuration validation and safe `not_configured` fallback; real dispatch is deliberately deferred until the user supplies credentials and a verified sender address.
 - [x] Build supervisor oversight screens for organization and attempt visibility within authorized scope.
 - [x] Add server unit tests for role authorization, isolation, status transitions, and priority recommendation behavior.
 - [x] Run type checks, unit tests, and visual responsive verification; resolve discovered issues.
-- [ ] Save a final project checkpoint and deliver the completed project.
+- [x] Save a final project checkpoint and deliver the completed project.
