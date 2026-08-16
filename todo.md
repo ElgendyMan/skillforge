@@ -62,3 +62,10 @@
 - [x] Add a dedicated loading and error experience to candidate performance analytics so no zero-value placeholder is mistaken for real data.
 - [x] Add or adjust regression tests for any defects fixed during the full-project review.
 - [x] Run complete typecheck, tests, production build, and responsive visual verification; save an improved checkpoint.
+
+- [x] Add a company notification polling/revalidation flow that highlights newly submitted candidate attempts immediately in the dashboard.
+- [x] Add regression tests for PDF report authorization and the company dashboard new-attempt notification count.
+- [x] Embed the guarded code-run action and stdout/stderr/error panel directly in the in-attempt code question while preserving autosave.
+- [x] Provide a true company-scoped PDF byte export endpoint for candidate statistics and reviewed/accepted test-result summaries.
+- [x] Add UI download controls, loading/error handling, and tests for notification freshness, embedded code execution, and PDF export authorization.
+- [x] Save a new checkpoint after the validated embedded runner and true PDF export changes.

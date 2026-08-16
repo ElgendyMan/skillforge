@@ -19,3 +19,14 @@ export function getCodeSuggestions(language: string, input: string) {
   const word = input.split(/\s/).pop()?.toLowerCase() ?? "";
   return (word.length >= 1 ? (completionByLanguage[language] ?? []).filter(item => item.toLowerCase().startsWith(word)) : []).slice(0, 5);
 }
+
+export function getNewAttemptCount(previous: number | null, current: number) {
+  return previous === null ? 0 : Math.max(0, current - previous);
+}
+
+export function getInlineExecutionState(input: { isPending: boolean; hasError: boolean; hasOutput: boolean }) {
+  if (input.isPending) return "loading" as const;
+  if (input.hasError) return "error" as const;
+  if (input.hasOutput) return "output" as const;
+  return "idle" as const;
+}

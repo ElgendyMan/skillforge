@@ -9,10 +9,11 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import { buildProgressChartData, CODE_EDITOR_DEFAULT_DARK, getCodeSuggestions } from "@/lib/editorExperience";
-import { AlertTriangle, ArrowLeft, Bell, BriefcaseBusiness, Camera, Check, ChevronLeft, ChevronRight, CircleCheck, Clock3, Code2, Eye, FileCode2, FileUp, Filter, Flag, Layers3, LayoutDashboard, LockKeyhole, MonitorUp, MoreVertical, Moon, Plus, Search, ShieldAlert, ShieldCheck, Sparkles, Sun, TimerReset, UserRound, UsersRound, Video, X } from "lucide-react";
+import { buildProgressChartData, CODE_EDITOR_DEFAULT_DARK, getCodeSuggestions, getInlineExecutionState, getNewAttemptCount } from "@/lib/editorExperience";
+import { AlertTriangle, ArrowLeft, Bell, BriefcaseBusiness, Camera, Check, ChevronLeft, ChevronRight, CircleCheck, Clock3, Code2, Eye, FileCode2, FileUp, Filter, Flag, Layers3, LayoutDashboard, LockKeyhole, MonitorUp, MoreVertical, Moon, Plus, Search, ShieldAlert, ShieldCheck, Sparkles, Sun, Terminal, TimerReset, UserRound, UsersRound, Video, X } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { type ComponentType, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Link, useLocation, useRoute } from "wouter";
 
@@ -75,7 +76,7 @@ export function SecureFilesPage() { const { user } = useAuth(); const files = tr
 
 export function DiscoverCatalog() { const probe = trpc.catalog.list.useQuery(); if (probe.isLoading) return <PortalShell role="candidate"><div className="page-wrap"><PageHeader eyebrow="Assessment catalog" title="جاري تجهيز الكتالوج..."/><div className="glass-panel h-72 animate-pulse"/></div></PortalShell>; if (probe.error) return <PortalShell role="candidate"><div className="page-wrap"><PageHeader eyebrow="Assessment catalog" title="تعذر تحميل الاختبارات." text="حصلت مشكلة مؤقتة أثناء جلب الكتالوج، ومش هنعتبرها نتيجة بحث فارغة." action={<Button onClick={() => probe.refetch()} className="bg-cyan-300 text-slate-950">إعادة المحاولة</Button>}/><Blank title="الكتالوج غير متاح حاليًا" text="جرّب تاني بعد لحظات. لو المشكلة استمرت، تواصل مع إدارة المنصة."/></div></PortalShell>; return <Discover />; }
 
-export function CompanyDashboard() {
+function LegacyCompanyDashboard() {
   const { user } = useAuth(); const data = trpc.company.dashboard.useQuery(undefined, { enabled: user?.role === "company" }); const [, setLocation] = useLocation();
   if (user?.role !== "company") return <CompanyActivation />;
   const dashboard = data.data;
@@ -83,6 +84,35 @@ export function CompanyDashboard() {
 }
 
 function CompanyActivation() { const activate = trpc.account.activateCompany.useMutation({ onSuccess: () => window.location.reload(), onError: (error: { message: string }) => toast.error(error.message) }); const [name, setName] = useState(""); const [slug, setSlug] = useState(""); return <div className="min-h-screen bg-[#07101f] p-5" dir="rtl"><div className="mx-auto max-w-xl pt-20"><div className="glass-panel p-7 md:p-9"><p className="eyebrow">Company onboarding</p><h1 className="mt-3 text-3xl font-semibold text-white">فعّل مساحة شركتك.</h1><p className="mt-3 text-sm leading-7 text-slate-400">هتقدر تنشر اختبارات وتراجع محاولات شركتك فقط. بيانات المرشحين مش بتخرج عن نطاق الاختبارات الخاصة بيك.</p><div className="mt-7 grid gap-4"><Input value={name} onChange={event => { setName(event.target.value); setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")); }} placeholder="اسم الشركة" className="border-white/10 bg-white/[.03] text-white"/><Input value={slug} onChange={event => setSlug(event.target.value)} placeholder="company-slug" className="border-white/10 bg-white/[.03] font-mono text-white"/></div><Button onClick={() => activate.mutate({ name, slug, description: null, website: null, industry: null })} disabled={activate.isPending || name.length < 2 || slug.length < 2} className="mt-6 w-full bg-cyan-300 text-slate-950 hover:bg-cyan-200">تفعيل مساحة الشركة</Button></div></div></div>; }
+
+function CompanyPdfExport() {
+  const report = trpc.enhancements.company.exportPdf.useQuery(undefined, { enabled: false });
+  const download = async () => {
+    const response = await report.refetch();
+    if (!response.data) return toast.error("تعذر تجهيز تقرير PDF.");
+    const data = response.data;
+    try {
+      const raw = atob(data.dataBase64);
+      const bytes = Uint8Array.from(raw, character => character.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: data.mimeType }));
+      const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = data.fileName; anchor.click(); URL.revokeObjectURL(url);
+      toast.success("تم تنزيل تقرير PDF.");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر إنشاء ملف PDF."); }
+  };
+  return <Button onClick={download} disabled={report.isFetching} variant="outline" className="border-violet-300/20 bg-violet-300/5 text-violet-100 hover:bg-violet-300/10 hover:text-white">{report.isFetching ? "جاري تجهيز PDF..." : "تصدير تقرير PDF"}</Button>;
+}
+
+export function CompanyDashboard() {
+  const { user } = useAuth();
+  const data = trpc.company.dashboard.useQuery(undefined, { enabled: user?.role === "company", refetchInterval: 8_000, refetchIntervalInBackground: true });
+  const [, setLocation] = useLocation();
+  const knownAttempts = useRef<number | null>(null);
+  useEffect(() => { const count = data.data?.metrics.attempts; if (count === undefined) return; const freshAttempts = getNewAttemptCount(knownAttempts.current, count); if (freshAttempts) toast.success(`وصلت ${freshAttempts} محاولة جديدة للتو.`); knownAttempts.current = count; }, [data.data?.metrics.attempts]);
+  if (user?.role !== "company") return <CompanyActivation />;
+  const dashboard = data.data;
+  return <PortalShell role="company"><div className="page-wrap"><PageHeader eyebrow="Company command center" title={dashboard ? `مرحبًا، ${dashboard.company.name}` : "لوحة الشركة"} text="اللوحة بتتحدث كل ثوانٍ عشان تعرف أول ما مرشح يسلّم اختبار." action={<div className="flex flex-wrap gap-2"><CompanyPdfExport/><Button onClick={() => setLocation("/company/create-test")} className="bg-cyan-300 text-slate-950 hover:bg-cyan-200"><Plus className="ml-1 h-4 w-4"/>اختبار جديد</Button></div>}/>{dashboard ? <><div className="mb-5 flex items-center gap-2 rounded-xl border border-emerald-300/15 bg-emerald-400/[.06] px-4 py-3 text-xs text-emerald-200"><Bell className="h-3.5 w-3.5"/>التحديث الفوري شغّال — هتظهر رسالة أول ما يوصل تسليم جديد.</div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="اختبارات منشورة" value={dashboard.metrics.publishedTests} hint="اختبارات ظاهرة للمرشحين" icon={Layers3}/><Metric label="كل المحاولات" value={dashboard.metrics.attempts} hint="تحديث تلقائي كل 8 ثوانٍ" icon={UsersRound}/><Metric label="تحتاج مراجعة" value={dashboard.metrics.pendingReview} hint="محاولات تحت المراجعة" icon={Clock3}/><Metric label="متوسط الأداء" value={`${dashboard.metrics.averagePerformance}%`} hint="درجات المراجع المسجلة" icon={Sparkles}/></div><section className="mt-8"><div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-semibold text-white">أعلى المحاولات أولوية</h2><button onClick={() => setLocation("/company/attempts")} className="text-xs text-cyan-300">كل المحاولات</button></div>{dashboard.recent.length ? <div className="grid gap-3">{dashboard.recent.map(row => <button onClick={() => setLocation(`/company/review/${row.attempt.id}`)} key={row.attempt.id} className="glass-panel flex items-center justify-between gap-4 p-4 text-right transition hover:border-cyan-300/20"><div className="flex min-w-0 items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-300/10 text-xs text-violet-200">{row.candidate.name?.slice(0, 1) ?? "م"}</span><div className="min-w-0"><p className="truncate text-sm font-medium text-white">{row.candidate.name ?? "مرشح"}</p><p className="mt-1 text-xs text-slate-500">{row.test.title}</p></div></div><div className="flex items-center gap-5"><span className="mono text-sm text-cyan-200">{row.attempt.priorityScore}</span><StatusPill status={row.attempt.applicationStatus}/><ChevronLeft className="h-4 w-4 text-slate-600"/></div></button>)}</div> : <Blank title="مافيش محاولات لحد دلوقتي" text="انشر اختبارك الأول وهيبدأ يظهر للمرشحين." action={<Button onClick={() => setLocation("/company/create-test")} className="bg-cyan-300 text-slate-950">أنشئ اختبار</Button>}/>}</section></> : <div className="glass-panel h-80 animate-pulse"/>}</div></PortalShell>;
+}
 
 const defaultQuestion = (type: QuestionType): DraftQuestion => ({ type, prompt: type === "multiple_choice" ? "اكتب نص السؤال هنا" : "اكتب تعليمات السؤال بوضوح", guidance: "", points: 10, options: type === "multiple_choice" ? [{ id: "a", label: "اختيار أ" }, { id: "b", label: "اختيار ب" }] : undefined, correctAnswers: type === "multiple_choice" ? ["a"] : undefined, starterCode: type === "code" ? "function solution(input) {\n  // your code\n}" : undefined, supportedLanguages: type === "code" ? ["JavaScript", "Python", "TypeScript"] : undefined });
 export function CompanyTestCreator() {
@@ -106,7 +136,7 @@ export function SupervisorAttempts() { const data = trpc.supervisor.attempts.use
 
 function ClipboardIcon(props: React.ComponentProps<typeof Layers3>) { return <FileCode2 {...props}/>; }
 
-export function TestRunner() {
+function LegacyTestRunner() {
   const [, params] = useRoute("/attempt/:id"); const attemptId = Number(params?.id); const payload = trpc.candidate.attempts.get.useQuery({ attemptId }, { enabled: Number.isFinite(attemptId) }); const saveAnswer = trpc.candidate.attempts.saveAnswer.useMutation(); const submit = trpc.candidate.attempts.submit.useMutation({ onSuccess: () => { toast.success("تم تسليم المحاولة."); setLocation("/candidate/status"); }, onError: error => toast.error(error.message) }); const proctor = trpc.proctoring.start.useMutation(); const eventLog = trpc.proctoring.logEvent.useMutation(); const finishProctor = trpc.proctoring.finish.useMutation(); const upload = trpc.files.upload.useMutation(); const [, setLocation] = useLocation();
   const [active, setActive] = useState(0); const [answers, setAnswers] = useState<Record<number, { text?: string; code?: string; selected?: string[]; language?: string; assetId?: number }>>({}); const [seconds, setSeconds] = useState(0); const [consentOpen, setConsentOpen] = useState(false); const [cameraConsent, setCameraConsent] = useState(false); const [screenConsent, setScreenConsent] = useState(false); const [recordConsent, setRecordConsent] = useState(false); const [sessionId, setSessionId] = useState<number | null>(null); const streamRef = useRef<MediaStream[]>([]); const cameraRecorderRef = useRef<MediaRecorder | null>(null); const screenRecorderRef = useRef<MediaRecorder | null>(null);
   const data = payload.data;
@@ -134,7 +164,7 @@ export function TestRunner() {
 }
 
 
-export function CodePlaygroundPage() {
+function LegacyCodePlaygroundPage() {
   const [, params] = useRoute("/attempt/:attemptId/code/:questionId");
   const attemptId = Number(params?.attemptId);
   const questionId = Number(params?.questionId);
@@ -149,6 +179,72 @@ export function CodePlaygroundPage() {
   const result = runner.data;
   const execute = () => runner.mutate({ attemptId, questionId, language: language as "javascript" | "python" | "typescript" | "java" | "c" | "cpp" | "go" | "rust", sourceCode, stdin });
   return <PortalShell role="candidate"><div className="page-wrap max-w-6xl"><PageHeader eyebrow="Isolated code runner" title="جرّب الكود قبل التسليم." text="التشغيل يتم من خلال بيئة تنفيذ معزولة بوقت وذاكرة وإخراج محدودين، وممنوع عنها الاتصال بالشبكة." action={<Button variant="outline" onClick={() => setLocation(`/attempt/${attemptId}`)} className="border-white/10 bg-white/[.03] text-slate-300">العودة للاختبار</Button>}/><div className="grid gap-5 lg:grid-cols-[1fr_340px]"><section className="glass-panel p-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><Select value={language} onValueChange={setLanguage}><SelectTrigger className="w-44 border-white/10 bg-white/[.03] text-slate-300"><SelectValue/></SelectTrigger><SelectContent>{["javascript", "typescript", "python", "java", "c", "cpp", "go", "rust"].map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select><Button onClick={execute} disabled={runner.isPending} className="bg-cyan-300 text-slate-950 hover:bg-cyan-200"><Code2 className="ml-2 h-4 w-4"/>{runner.isPending ? "جاري التشغيل..." : "تشغيل معزول"}</Button></div><CodeEditor value={sourceCode} language={language} onChange={next => { setSourceCode(next); saveCode.mutate({ attemptId, questionId, codeAnswer: next, textAnswer: null, selectedOptionIds: null, language, fileAssetId: null }); }} />{runner.error && <div className="mt-4 rounded-xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm leading-6 text-rose-200">{runner.error.message}</div>}{result && <div className="mt-4 grid gap-3 md:grid-cols-2"><div className="rounded-xl border border-white/10 bg-black/20 p-4"><p className="text-xs text-slate-500">stdout</p><pre dir="ltr" className="mono mt-2 min-h-24 whitespace-pre-wrap text-xs text-emerald-200">{String(result.stdout ?? "") || "(empty)"}</pre></div><div className="rounded-xl border border-white/10 bg-black/20 p-4"><p className="text-xs text-slate-500">stderr / compile output</p><pre dir="ltr" className="mono mt-2 min-h-24 whitespace-pre-wrap text-xs text-rose-200">{String(result.stderr ?? result.compileOutput ?? "") || "(empty)"}</pre></div><div className="md:col-span-2"><Badge variant="outline" className="border-cyan-300/20 text-cyan-200">{typeof result.status === "object" && result.status && "description" in result.status ? String(result.status.description) : "Completed"}</Badge></div></div>}</section><aside className="space-y-4"><div className="glass-panel p-5"><p className="eyebrow">Standard input</p><Textarea dir="ltr" value={stdin} onChange={event => setStdin(event.target.value)} rows={8} placeholder="Input passed to stdin" className="mono mt-3 border-white/10 bg-white/[.03] text-left text-xs text-white"/><p className="mt-3 text-xs leading-6 text-slate-500">الحدود الأمنية: 30KB كود، 10KB إدخال، حد زمني قصير، وإخراج محدود.</p></div><div className="glass-panel p-5"><p className="text-sm font-semibold text-white">ملاحظة مهمة</p><p className="mt-2 text-xs leading-6 text-slate-400">لا يتم تشغيل كود المرشح داخل خادم المنصة مباشرة. يلزم إعداد مزود تنفيذ معزول مثل Judge0 قبل التشغيل الفعلي.</p></div></aside></div></div></PortalShell>;
+}
+
+function LegacyInlineAttemptCodeRunner({ attemptId }: { attemptId: number }) {
+  const attempt = trpc.candidate.attempts.get.useQuery({ attemptId }, { enabled: Number.isFinite(attemptId) });
+  const runner = trpc.enhancements.code.run.useMutation();
+  const saveCode = trpc.candidate.attempts.saveAnswer.useMutation();
+  const [open, setOpen] = useState(false);
+  const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(null);
+  const [sourceCode, setSourceCode] = useState("");
+  const [language, setLanguage] = useState("javascript");
+  const [stdin, setStdin] = useState("");
+  const codeQuestions = (attempt.data?.questions ?? []).filter(item => item.type === "code");
+  const selectedQuestion = codeQuestions.find(item => item.id === selectedQuestionId) ?? codeQuestions[0];
+  useEffect(() => { if (!selectedQuestion) return; const answer = attempt.data?.answers.find(item => item.questionId === selectedQuestion.id); setSelectedQuestionId(selectedQuestion.id); setSourceCode(answer?.codeAnswer ?? selectedQuestion.starterCode ?? ""); setLanguage(answer?.language ?? selectedQuestion.supportedLanguages?.[0]?.toLowerCase() ?? "javascript"); }, [selectedQuestion?.id, attempt.data]);
+  if (!codeQuestions.length) return null;
+  const run = () => { if (!selectedQuestion) return; runner.mutate({ attemptId, questionId: selectedQuestion.id, language: language as "javascript" | "python" | "typescript" | "java" | "c" | "cpp" | "go" | "rust", sourceCode, stdin }); };
+  return <><Button onClick={() => setOpen(true)} className="fixed bottom-5 left-5 z-50 bg-cyan-300 text-slate-950 shadow-xl shadow-cyan-900/30 hover:bg-cyan-200"><Terminal className="ml-2 h-4 w-4"/>تشغيل الكود</Button><Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto border-white/10 bg-[#0b1729] text-white" dir="rtl"><DialogHeader><DialogTitle>تشغيل الكود داخل الاختبار</DialogTitle><DialogDescription className="text-slate-400">النتيجة تجريبية من بيئة معزولة، وإجابتك بتتحفظ تلقائيًا أثناء التعديل.</DialogDescription></DialogHeader><div className="grid gap-4 lg:grid-cols-[1fr_300px]"><div><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><Select value={String(selectedQuestion?.id ?? "")} onValueChange={value => setSelectedQuestionId(Number(value))}><SelectTrigger className="w-56 border-white/10 bg-white/[.03] text-slate-300"><SelectValue/></SelectTrigger><SelectContent>{codeQuestions.map((item, index) => <SelectItem key={item.id} value={String(item.id)}>سؤال كود {index + 1}</SelectItem>)}</SelectContent></Select><div className="flex gap-2"><Select value={language} onValueChange={setLanguage}><SelectTrigger className="w-36 border-white/10 bg-white/[.03] text-slate-300"><SelectValue/></SelectTrigger><SelectContent>{(selectedQuestion?.supportedLanguages ?? ["javascript", "python"]).map(item => <SelectItem key={item.toLowerCase()} value={item.toLowerCase()}>{item}</SelectItem>)}</SelectContent></Select><Button onClick={run} disabled={runner.isPending || !sourceCode.trim()} className="bg-cyan-300 text-slate-950 hover:bg-cyan-200">{runner.isPending ? "جاري التشغيل..." : "تشغيل"}</Button></div></div><CodeEditor value={sourceCode} language={language} onChange={value => { setSourceCode(value); if (selectedQuestion) saveCode.mutate({ attemptId, questionId: selectedQuestion.id, codeAnswer: value, textAnswer: null, selectedOptionIds: null, language, fileAssetId: null }); }}/><div className="mt-4 rounded-xl border border-white/10 bg-[#07101f] p-4" dir="ltr"><p className="text-xs text-slate-500">stdout / stderr</p>{runner.error ? <p className="mt-2 text-sm text-rose-200">{runner.error.message}</p> : runner.data ? <pre className="mono mt-2 min-h-24 whitespace-pre-wrap text-xs text-cyan-100">{String(runner.data.stdout ?? "") || String(runner.data.stderr ?? runner.data.compileOutput ?? "(empty)")}</pre> : <p className="mt-2 text-sm text-slate-500">شغّل الكود عشان يظهر الناتج هنا.</p>}</div></div><aside><p className="eyebrow">Standard input</p><Textarea dir="ltr" value={stdin} onChange={event => setStdin(event.target.value)} rows={8} className="mono mt-3 border-white/10 bg-white/[.03] text-left text-xs text-white" placeholder="Input passed to stdin"/><p className="mt-3 text-xs leading-6 text-slate-500">التشغيل معزول وممنوع من الاتصال بالشبكة. الحد: 30KB كود و10KB إدخال.</p></aside></div></DialogContent></Dialog></>;
+}
+
+function InlineAttemptCodeRunner({ attemptId }: { attemptId: number }) {
+  const attempt = trpc.candidate.attempts.get.useQuery({ attemptId }, { enabled: Number.isFinite(attemptId) });
+  const runner = trpc.enhancements.code.run.useMutation();
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const locate = () => {
+      const editor = Array.from(document.querySelectorAll<HTMLTextAreaElement>('textarea[dir="ltr"]')).find(item => item.className.includes("bg-slate-950"));
+      const container = editor?.parentElement;
+      if (container && target !== container) {
+        Array.from(container.querySelectorAll("button")).find(button => button.textContent?.includes("فتح مشغل الكود"))?.setAttribute("hidden", "true");
+        setTarget(container);
+      }
+    };
+    locate();
+    const timer = window.setInterval(locate, 700);
+    return () => window.clearInterval(timer);
+  }, [target]);
+  const question = (attempt.data?.questions ?? []).find(item => item.type === "code");
+  if (!target || !question) return null;
+  const executionState = getInlineExecutionState({ isPending: runner.isPending, hasError: Boolean(runner.error), hasOutput: Boolean(runner.data) });
+  const execute = () => {
+    const editor = target.querySelector("textarea") as HTMLTextAreaElement | null;
+    const sourceCode = editor?.value ?? "";
+    const language = question.supportedLanguages?.[0]?.toLowerCase() ?? "javascript";
+    runner.mutate({ attemptId, questionId: question.id, language: language as "javascript" | "python" | "typescript" | "java" | "c" | "cpp" | "go" | "rust", sourceCode, stdin: "" });
+  };
+  return createPortal(<section className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-300/[.04] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs text-cyan-100">تشغيل الكود الحالي في بيئة معزولة</span><Button size="sm" onClick={execute} disabled={executionState === "loading"} className="bg-cyan-300 text-slate-950 hover:bg-cyan-200"><Terminal className="ml-1 h-3.5 w-3.5"/>{executionState === "loading" ? "جاري التشغيل..." : "تشغيل"}</Button></div>{executionState === "error" ? <p className="mt-3 text-xs leading-6 text-rose-200">{runner.error?.message}</p> : executionState === "output" ? <pre dir="ltr" className="mono mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950/80 p-3 text-left text-xs text-cyan-50">{String(runner.data?.stdout ?? "") || String(runner.data?.stderr ?? runner.data?.compileOutput ?? "(empty)")}</pre> : <p className="mt-2 text-[11px] text-slate-500">المخرجات أو الأخطاء هتظهر هنا من غير ما تخرج من سؤال الكود.</p>}</section>, target);
+}
+
+export function TestRunner() { const [, params] = useRoute("/attempt/:id"); const attemptId = Number(params?.id); return <><LegacyTestRunner/><InlineAttemptCodeRunner attemptId={attemptId}/></>; }
+
+export function CodePlaygroundPage() {
+  const [, params] = useRoute("/attempt/:attemptId/code/:questionId");
+  const attemptId = Number(params?.attemptId);
+  const questionId = Number(params?.questionId);
+  const attempt = trpc.candidate.attempts.get.useQuery({ attemptId }, { enabled: Number.isFinite(attemptId) });
+  const runner = trpc.enhancements.code.run.useMutation();
+  const saveCode = trpc.candidate.attempts.saveAnswer.useMutation();
+  const [, setLocation] = useLocation();
+  const [language, setLanguage] = useState("javascript");
+  const [sourceCode, setSourceCode] = useState("");
+  const [stdin, setStdin] = useState("");
+  useEffect(() => { const question = attempt.data?.questions.find(item => item.id === questionId); const answer = attempt.data?.answers.find(item => item.questionId === questionId); if (question) { setSourceCode(answer?.codeAnswer ?? question.starterCode ?? ""); const firstLanguage = question.supportedLanguages?.[0]?.toLowerCase(); if (firstLanguage) setLanguage(firstLanguage); } }, [attempt.data, questionId]);
+  const execute = () => runner.mutate({ attemptId, questionId, language: language as "javascript" | "python" | "typescript" | "java" | "c" | "cpp" | "go" | "rust", sourceCode, stdin });
+  useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); if (!runner.isPending && sourceCode.trim()) execute(); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [runner.isPending, sourceCode, language, stdin]);
+  const result = runner.data;
+  return <PortalShell role="candidate"><div className="page-wrap max-w-6xl"><PageHeader eyebrow="Embedded isolated runner" title="اكتب، شغّل، وشوف الناتج في نفس المكان." text="اختصار التشغيل: Ctrl / Cmd + Enter. التشغيل معزول بحدود وقت وذاكرة ولا يسمح باتصال شبكة." action={<Button variant="outline" onClick={() => setLocation(`/attempt/${attemptId}`)} className="border-white/10 bg-white/[.03] text-slate-300">العودة للاختبار</Button>}/><div className="grid gap-5 lg:grid-cols-[1fr_340px]"><section className="glass-panel p-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><Select value={language} onValueChange={setLanguage}><SelectTrigger className="w-44 border-white/10 bg-white/[.03] text-slate-300"><SelectValue/></SelectTrigger><SelectContent>{["javascript", "typescript", "python", "java", "c", "cpp", "go", "rust"].map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select><Button onClick={execute} disabled={runner.isPending || !sourceCode.trim()} className="bg-cyan-300 text-slate-950 hover:bg-cyan-200"><Code2 className="ml-2 h-4 w-4"/>{runner.isPending ? "جاري التشغيل..." : "تشغيل الكود"}</Button></div><CodeEditor value={sourceCode} language={language} onChange={next => { setSourceCode(next); saveCode.mutate({ attemptId, questionId, codeAnswer: next, textAnswer: null, selectedOptionIds: null, language, fileAssetId: null }); }}/><section className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-[#07101f]"><div className="flex items-center justify-between border-b border-white/8 px-4 py-3"><div className="flex items-center gap-2"><Terminal className="h-4 w-4 text-cyan-200"/><p className="text-sm font-medium text-white">مخرجات التشغيل</p></div><span className="text-[11px] text-slate-500">Ctrl / Cmd + Enter</span></div>{runner.error ? <div className="p-4 text-sm leading-6 text-rose-200">{runner.error.message}</div> : result ? <div className="grid divide-y divide-white/8 md:grid-cols-2 md:divide-x md:divide-y-0" dir="ltr"><div className="p-4"><p className="text-xs text-emerald-300">stdout</p><pre className="mono mt-2 min-h-24 whitespace-pre-wrap text-xs text-emerald-100">{String(result.stdout ?? "") || "(empty)"}</pre></div><div className="p-4"><p className="text-xs text-rose-300">stderr / compile output</p><pre className="mono mt-2 min-h-24 whitespace-pre-wrap text-xs text-rose-100">{String(result.stderr ?? result.compileOutput ?? "") || "(empty)"}</pre></div></div> : <div className="p-5 text-sm text-slate-500">شغّل الكود عشان تشوف الناتج أو الأخطاء هنا.</div>}</section></section><aside className="space-y-4"><div className="glass-panel p-5"><p className="eyebrow">Standard input</p><Textarea dir="ltr" value={stdin} onChange={event => setStdin(event.target.value)} rows={8} placeholder="Input passed to stdin" className="mono mt-3 border-white/10 bg-white/[.03] text-left text-xs text-white"/><p className="mt-3 text-xs leading-6 text-slate-500">حد الكود 30KB والإدخال 10KB. النتيجة لا تغيّر إجابتك إلا بعد الحفظ التلقائي.</p></div><div className="glass-panel p-5"><p className="text-sm font-semibold text-white">تنبيه أمان</p><p className="mt-2 text-xs leading-6 text-slate-400">لو بيئة التشغيل المعزول مش متوصلة، هتشوف رسالة واضحة بدل ما يتم تشغيل الكود داخل خادم المنصة.</p></div></aside></div></div></PortalShell>;
 }
 
 export function CompanyRankingPage() {
