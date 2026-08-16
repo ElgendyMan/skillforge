@@ -1,0 +1,30 @@
+# Project TODO
+
+- [x] Define the product domain model for candidates, companies, supervisors, tests, questions, attempts, reviews, proctoring sessions, recordings, and notifications.
+- [x] Add server-side role guards for candidate/company/supervisor procedures and enforce ownership checks on every test, attempt, review, notification, and file-access query/mutation.
+- [x] Implement and test permission-scoped access rules so each company only sees its own tests/attempts and each candidate only sees their own attempts/recordings.
+- [x] Add unit tests covering forbidden cross-company and cross-candidate access, plus supervisor-only access paths.
+- [x] Implement candidate and company profile screens with authenticated editing, company-logo upload, and a public company page; supervisor administration uses its protected oversight console.
+- [x] Apply and verify the RTL landing page implementation in `client/src/pages/Home.tsx` with polished sections, Arabic copy, and clear CTA/navigation.
+- [x] Update `client/src/App.tsx`, `client/index.html`, and `client/src/index.css` to register the product routes, set Arabic/RTL metadata, and ship the intended visual system.
+- [x] Run typecheck/build after the frontend changes and confirm the new navigation paths compile cleanly.
+- [x] Finish and verify the test discovery page UI, including a company filter control wired to catalog.list and clean loading/empty/error states.
+- [x] Build a multi-section company test creation wizard with MCQ, essay, code, vulnerability discovery, and file-upload questions.
+- [x] Build the candidate test runner with countdown, autosave, section navigation, code editor, and evidence attachment flow.
+- [x] Fix `TestRunner` recording lifecycle: store the screen recorder ref, stop both recorders cleanly, and log `camera_stopped` / related events when tracks end.
+- [x] Link uploaded camera/screen recording assets back to `proctoringSessions` so review queries return usable recording asset IDs.
+- [ ] Add reviewer/candidate UI actions that call `files.secureAccess` for evidence and recordings, with loading/error states and permission-aware rendering.
+- [x] Add tests covering proctoring event logging, integrity-flag classification, and permission-scoped file access for candidate/company/supervisor roles.
+- [x] Add procedure-level tests that reject candidate/company/supervisor cross-role dashboard access before data queries execute.
+- [ ] Add procedure-level tests proving forbidden cross-company and cross-candidate access to attempt and recording paths.
+- [ ] Add an explicit catalog-query error state in the candidate discovery interface.
+- [x] Add status-transition validation tests for accepted, rejected, and under review decisions.
+- [x] Finish and verify the company dashboard page UI wired to company.dashboard, showing published tests, attempts, pending review, and average performance with proper states.
+- [x] Build the company review page with answers, scores, event timeline, integrity indicators, reviewer notes, and priority recommendation.
+- [x] Implement candidate application-status tracking with the exact values accepted, rejected, and under review.
+- [x] Implement notifications for new submitted attempts and candidate status changes.
+- [ ] Activate outbound email delivery after Resend credentials and a verified sender address are provided; internal notifications are implemented meanwhile.
+- [x] Build supervisor oversight screens for organization and attempt visibility within authorized scope.
+- [x] Add server unit tests for role authorization, isolation, status transitions, and priority recommendation behavior.
+- [x] Run type checks, unit tests, and visual responsive verification; resolve discovered issues.
+- [ ] Save a final project checkpoint and deliver the completed project.

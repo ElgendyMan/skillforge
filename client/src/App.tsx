@@ -5,12 +5,29 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import { CandidateDashboard, CandidateProfile, CandidateStatus, CompanyAttempts, CompanyDashboard, CompanyProfile, CompanyPublicPage, CompanyTestCreator, CompanyTests, Discover, NotificationsPage, ReviewAttempt, SupervisorAttempts, SupervisorDashboard, TestRunner } from "./pages/Platform";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+      <Route path={"/discover"} component={Discover} />
+      <Route path={"/candidate"} component={CandidateDashboard} />
+      <Route path={"/candidate/profile"} component={CandidateProfile} />
+      <Route path={"/candidate/status"} component={CandidateStatus} />
+      <Route path={"/candidate/notifications"} component={NotificationsPage} />
+      <Route path={"/company"} component={CompanyDashboard} />
+      <Route path={"/company/create-test"} component={CompanyTestCreator} />
+      <Route path={"/company/attempts"} component={CompanyAttempts} />
+      <Route path={"/company/tests"} component={CompanyTests} />
+      <Route path={"/company/profile"} component={CompanyProfile} />
+      <Route path={"/company/notifications"} component={NotificationsPage} />
+      <Route path={"/company/review/:id"} component={ReviewAttempt} />
+      <Route path={"/supervisor"} component={SupervisorDashboard} />
+      <Route path={"/supervisor/attempts"} component={SupervisorAttempts} />
+      <Route path={"/attempt/:id"} component={TestRunner} />
+      <Route path={"/companies/:slug"} component={CompanyPublicPage} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
@@ -27,7 +44,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider
-        defaultTheme="light"
+        defaultTheme="dark"
         // switchable
       >
         <TooltipProvider>

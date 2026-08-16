@@ -1,5 +1,27 @@
 {
   "version": "7",
   "dialect": "mysql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1786862452664,
+      "tag": "0000_premium_the_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1786862805795,
+      "tag": "0001_large_banshee",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1786863823595,
+      "tag": "0002_clear_lightspeed",
+      "breakpoints": true
+    }
+  ]
 }
