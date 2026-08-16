@@ -36,4 +36,4 @@
 - [x] Add ATS export for accepted candidates with CSV download and structured candidate/attempt fields.
 - [x] Add company candidate-ranking dashboard with filters, sorting, pagination, and server-side company isolation.
 - [x] Add tests for email fallback and code execution limits; authorization for ATS export and ranking remains enforced by the company membership procedures and covered by the existing role-isolation suite.
-- [ ] Run final typecheck, tests, build, visual verification, and save a new checkpoint.
+- [x] Run final typecheck, tests, build, visual verification, and save a new checkpoint.
