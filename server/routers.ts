@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { accountRouter, candidateRouter, catalogRouter, companyRouter, fileRouter, notificationRouter, proctoringRouter, supervisorRouter } from "./routers/hiring";
+import { experienceRouter } from "./routers/experience";
 import { enhancementRouter } from "./routers/enhancements";
 
 export const appRouter = router({
@@ -26,6 +27,7 @@ export const appRouter = router({
   files: fileRouter,
   notifications: notificationRouter,
   supervisor: supervisorRouter,
+  experience: experienceRouter,
   enhancements: enhancementRouter,
 });
 

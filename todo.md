@@ -37,3 +37,10 @@
 - [x] Add company candidate-ranking dashboard with filters, sorting, pagination, and server-side company isolation.
 - [x] Add tests for email fallback and code execution limits; authorization for ATS export and ranking remains enforced by the company membership procedures and covered by the existing role-isolation suite.
 - [x] Run final typecheck, tests, build, visual verification, and save a new checkpoint.
+
+- [x] Add an authorized company review viewer for camera and screen recordings with temporary access, playback controls, and integrity context.
+- [x] Add a candidate performance analytics page with historical scores, status distribution, attempts timeline, and company review notes.
+- [x] Add server procedure for candidate-owned performance analytics and review-note isolation.
+- [x] Upgrade the code editor experience with syntax highlighting, language-aware autocomplete, keyboard-friendly suggestions, and preserved autosave/run behavior.
+- [x] Add tests for recording access authorization, candidate analytics ownership, review-note visibility, and editor behavior boundaries.
+- [x] Run final typecheck, tests, build, visual verification, and save a new checkpoint.
