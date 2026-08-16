@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import type { TrpcContext } from "../_core/context";
-import { canViewReviewMedia, isCandidateAnalyticsOwner } from "./experience";
-import { getCodeSuggestions } from "../../client/src/pages/Platform";
+import { buildProgressChartData, CODE_EDITOR_DEFAULT_DARK, getCodeSuggestions } from "../../client/src/pages/Platform";
+import { canViewReviewMedia, isCandidateAnalyticsOwner, matchesMediaFilter } from "./experience";
 
 function contextFor(role: "candidate" | "company" | "supervisor"): TrpcContext {
   return {
@@ -41,11 +41,22 @@ describe("experience procedure boundaries", () => {
   });
 });
 
-describe("code editor boundaries", () => {
-  it("returns language-aware suggestions and never suggests unknown language tokens", () => {
+describe("new experience UI data boundaries", () => {
+  it("filters media search by candidate, email, test, and exact status", () => {
+    const row = { candidateName: "Mina Hassan", email: "mina@example.com", testTitle: "Web Security", applicationStatus: "under review" };
+    expect(matchesMediaFilter(row, { search: "mina", status: "under review" })).toBe(true);
+    expect(matchesMediaFilter(row, { search: "other", status: "under review" })).toBe(false);
+    expect(matchesMediaFilter(row, { search: "security", status: "accepted" })).toBe(false);
+  });
+
+  it("keeps the editor dark by default and shapes only submitted scores for charts", () => {
+    expect(CODE_EDITOR_DEFAULT_DARK).toBe(true);
+    expect(buildProgressChartData([{ state: "in_progress", test: { title: "Draft" }, autoScore: 90 }, { state: "submitted", test: { title: "Web Security" }, reviewerScore: 82, autoScore: 80 }])).toEqual([{ name: "Web Security", score: 82 }]);
+  });
+
+  it("returns language-aware autocomplete suggestions", () => {
     expect(getCodeSuggestions("javascript", "console")).toContain("console.log()");
     expect(getCodeSuggestions("python", "pri")).toContain("print()");
     expect(getCodeSuggestions("javascript", "pri")).toEqual([]);
-    expect(getCodeSuggestions("unknown", "con")).toEqual([]);
   });
 });

@@ -44,3 +44,9 @@
 - [x] Upgrade the code editor experience with syntax highlighting, language-aware autocomplete, keyboard-friendly suggestions, and preserved autosave/run behavior.
 - [x] Add tests for recording access authorization, candidate analytics ownership, review-note visibility, and editor behavior boundaries.
 - [x] Run final typecheck, tests, build, visual verification, and save a new checkpoint.
+
+- [x] Add a dedicated dark-mode toggle and styling state for the code editor.
+- [x] Add server-backed search and filtering controls for company candidate recording sessions.
+- [x] Add interactive candidate-progress charts for score history and application status distribution.
+- [x] Add tests for editor theme state, recording filters, chart data shaping, and authorization boundaries.
+- [x] Run final typecheck, tests, build, visual verification, and save a new checkpoint.

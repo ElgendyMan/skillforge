@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { companies, fileAssets, proctoringEvents, proctoringSessions, reviews, testAttempts, tests } from "../../drizzle/schema";
+import { companies, fileAssets, proctoringEvents, proctoringSessions, reviews, testAttempts, tests, users } from "../../drizzle/schema";
 import { getDb, isCompanyMember } from "../db";
 import { storageGetSignedUrl } from "../storage";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -18,6 +18,12 @@ export function canViewReviewMedia(input: { role: string; isCompanyMember: boole
 
 export function isCandidateAnalyticsOwner(input: { role: string }) {
   return input.role === "candidate";
+}
+
+export function matchesMediaFilter(input: { candidateName?: string | null; email?: string | null; testTitle?: string | null; applicationStatus?: string | null }, filter: { search?: string; status?: string }) {
+  const search = filter.search?.trim().toLowerCase();
+  const text = `${input.candidateName ?? ""} ${input.email ?? ""} ${input.testTitle ?? ""}`.toLowerCase();
+  return (!search || text.includes(search)) && (!filter.status || input.applicationStatus === filter.status);
 }
 
 function forbid(message = "You are not permitted to access this resource."): never {
@@ -53,6 +59,17 @@ export const experienceRouter = router({
         underReview,
       },
     };
+  }),
+
+  companyMediaIndex: protectedProcedure.input(z.object({ search: z.string().trim().max(120).optional(), status: z.enum(["accepted", "rejected", "under review"]).optional() }).optional()).query(async ({ ctx, input }) => {
+    if (ctx.user.role !== "company") forbid("Company access is required.");
+    const company = await (async () => { const db = await dbOrFail(); const rows = await db.select({ company: companies }).from(companies).where(sql`${companies.id} in (select companyId from companyMembers where userId = ${ctx.user.id})`).limit(1); return rows[0]?.company; })();
+    if (!company) forbid();
+    const db = await dbOrFail();
+    const filters = [eq(tests.companyId, company.id)];
+    if (input?.status) filters.push(eq(testAttempts.applicationStatus, input.status));
+    if (input?.search) filters.push(or(sql`${users.name} like ${`%${input.search}%`}`, sql`${users.email} like ${`%${input.search}%`}`, sql`${tests.title} like ${`%${input.search}%`}`)!);
+    return db.select({ attempt: testAttempts, test: tests, candidate: users }).from(testAttempts).innerJoin(tests, eq(testAttempts.testId, tests.id)).innerJoin(users, eq(testAttempts.candidateId, users.id)).where(and(...filters)).orderBy(desc(testAttempts.updatedAt));
   }),
 
   companyReviewMedia: protectedProcedure.input(z.object({ attemptId: z.number().int().positive() })).query(async ({ ctx, input }) => {
