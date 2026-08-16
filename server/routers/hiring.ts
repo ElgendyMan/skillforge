@@ -217,10 +217,14 @@ export const candidateRouter = router({
       await db.update(testAttempts).set({ state: "submitted", submittedAt: new Date(), autoScore, priorityScore, applicationStatus: "under review" }).where(eq(testAttempts.id, attempt.id));
       const testRow = await db.select().from(tests).where(eq(tests.id, attempt.testId)).limit(1);
       const members = testRow[0] ? await db.select({ userId: companyMembers.userId, email: users.email }).from(companyMembers).innerJoin(users, eq(companyMembers.userId, users.id)).where(eq(companyMembers.companyId, testRow[0].companyId)) : [];
-      for (const member of members) {
-        const emailStatus = await deliverEmail({ to: member.email, subject: "New SkillForge assessment submission", text: "A candidate submitted a technical assessment and it is ready for review in SkillForge.", idempotencyKey: `attempt-submitted-${attempt.id}-${member.userId}` });
-        await db.insert(notifications).values({ userId: member.userId, type: "attempt_submitted", title: "New assessment submission", content: "A candidate submitted a technical assessment and it is ready for review.", emailStatus });
-      }
+      const notificationsToCreate = await Promise.all(members.map(async member => ({
+        userId: member.userId,
+        type: "attempt_submitted" as const,
+        title: "New assessment submission",
+        content: "A candidate submitted a technical assessment and it is ready for review.",
+        emailStatus: await deliverEmail({ to: member.email, subject: "New SkillForge assessment submission", text: "A candidate submitted a technical assessment and it is ready for review in SkillForge.", idempotencyKey: `attempt-submitted-${attempt.id}-${member.userId}` }),
+      })));
+      if (notificationsToCreate.length) await db.insert(notifications).values(notificationsToCreate);
       return { autoScore, priorityScore, applicationStatus: "under review" as const };
     }),
     list: protectedProcedure.query(async ({ ctx }) => {

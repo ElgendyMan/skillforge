@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import type { TrpcContext } from "../_core/context";
-import { buildProgressChartData, CODE_EDITOR_DEFAULT_DARK, getCodeSuggestions } from "../../client/src/pages/Platform";
-import { canViewReviewMedia, isCandidateAnalyticsOwner, matchesMediaFilter } from "./experience";
+import { buildProgressChartData, CODE_EDITOR_DEFAULT_DARK, getCodeSuggestions } from "../../client/src/lib/editorExperience";
+import { canViewReviewMedia, isCandidateAnalyticsOwner, isLinkedReviewRecording, matchesMediaFilter, normalizeMediaSearch } from "./experience";
 
 function contextFor(role: "candidate" | "company" | "supervisor"): TrpcContext {
   return {
@@ -27,6 +27,12 @@ describe("review media authorization", () => {
     expect(canViewReviewMedia({ role: "candidate", isCompanyMember: true })).toBe(false);
     expect(canViewReviewMedia({ role: "supervisor", isCompanyMember: false })).toBe(false);
   });
+
+  it("accepts only the session-linked camera and screen asset identifiers", () => {
+    expect(isLinkedReviewRecording({ id: 10, attemptId: 5, category: "camera_recording" }, 5, [10, 11])).toBe(true);
+    expect(isLinkedReviewRecording({ id: 12, attemptId: 5, category: "evidence" }, 5, [10, 11])).toBe(false);
+    expect(isLinkedReviewRecording({ id: 10, attemptId: 6, category: "camera_recording" }, 5, [10, 11])).toBe(false);
+  });
 });
 
 describe("experience procedure boundaries", () => {
@@ -47,6 +53,7 @@ describe("new experience UI data boundaries", () => {
     expect(matchesMediaFilter(row, { search: "mina", status: "under review" })).toBe(true);
     expect(matchesMediaFilter(row, { search: "other", status: "under review" })).toBe(false);
     expect(matchesMediaFilter(row, { search: "security", status: "accepted" })).toBe(false);
+    expect(normalizeMediaSearch("  Mi_na%\\ ")).toBe("mina");
   });
 
   it("keeps the editor dark by default and shapes only submitted scores for charts", () => {

@@ -50,3 +50,15 @@
 - [x] Add interactive candidate-progress charts for score history and application status distribution.
 - [x] Add tests for editor theme state, recording filters, chart data shaping, and authorization boundaries.
 - [x] Run final typecheck, tests, build, visual verification, and save a new checkpoint.
+
+- [x] Audit the current client, server, and database-facing flows for defects, stale states, and authorization regressions.
+- [x] Restrict company recording review URLs to the linked camera/screen recording assets and normalize server-side recording searches.
+- [x] Make company submission notifications resilient and parallel so large reviewer teams do not delay candidate submission.
+- [x] Separate non-UI editor and chart utilities from React page modules to keep server-side tests lightweight and stable.
+- [x] Normalize wildcard characters in company candidate-ranking search before sending it to the database.
+- [x] Split React and chart dependencies into cacheable production bundles to reduce initial application payload impact.
+- [x] Add a defense-in-depth test that excludes unrelated attempt assets from recording playback URLs.
+- [x] Improve discovered usability, loading, error, and empty states across the candidate and company experiences.
+- [x] Add a dedicated loading and error experience to candidate performance analytics so no zero-value placeholder is mistaken for real data.
+- [x] Add or adjust regression tests for any defects fixed during the full-project review.
+- [x] Run complete typecheck, tests, production build, and responsive visual verification; save an improved checkpoint.

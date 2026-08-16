@@ -43,6 +43,10 @@ function csvCell(value: unknown) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
+export function normalizeRankingSearch(value: string) {
+  return value.trim().replace(/[\\%_]/g, "").toLowerCase();
+}
+
 export const enhancementRouter = router({
   code: router({
     run: protectedProcedure.input(z.object({
@@ -92,7 +96,11 @@ export const enhancementRouter = router({
       const filters = [eq(tests.companyId, company.id)];
       if (input.status) filters.push(eq(testAttempts.applicationStatus, input.status));
       if (input.minScore !== undefined) filters.push(gte(sql`COALESCE(${testAttempts.reviewerScore}, ${testAttempts.autoScore}, 0)`, input.minScore));
-      if (input.search) filters.push(sql`(${users.name} LIKE ${`%${input.search}%`} OR ${users.email} LIKE ${`%${input.search}%`} OR ${candidateProfiles.headline} LIKE ${`%${input.search}%`})`);
+      const search = input.search ? normalizeRankingSearch(input.search) : "";
+      if (search) {
+        const pattern = `%${search}%`;
+        filters.push(sql`(lower(${users.name}) LIKE ${pattern} OR lower(${users.email}) LIKE ${pattern} OR lower(${candidateProfiles.headline}) LIKE ${pattern})`);
+      }
       const rows = await db.select({ attempt: testAttempts, test: tests, candidate: users, profile: candidateProfiles }).from(testAttempts).innerJoin(tests, eq(testAttempts.testId, tests.id)).innerJoin(users, eq(testAttempts.candidateId, users.id)).leftJoin(candidateProfiles, eq(candidateProfiles.userId, users.id)).where(and(...filters)).orderBy(input.sort === "score" ? desc(sql`COALESCE(${testAttempts.reviewerScore}, ${testAttempts.autoScore}, 0)`) : input.sort === "recent" ? desc(testAttempts.updatedAt) : desc(testAttempts.priorityScore)).limit(input.limit).offset(input.page * input.limit);
       return rows;
     }),

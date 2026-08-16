@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import type { TrpcContext } from "../_core/context";
-import { isSupportedCodeLanguage, validateCodeRunInput } from "./enhancements";
+import { isSupportedCodeLanguage, normalizeRankingSearch, validateCodeRunInput } from "./enhancements";
 
 function contextFor(role: "candidate" | "company" | "supervisor"): TrpcContext {
   return {
@@ -33,5 +33,11 @@ describe("company ranking and ATS authorization", () => {
     const supervisor = appRouter.createCaller(contextFor("supervisor"));
     await expect(candidate.enhancements.company.ranking({ sort: "priority", page: 0, limit: 25 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(supervisor.enhancements.company.exportAcceptedCsv()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("company ranking search", () => {
+  it("normalizes wildcard characters before building a server-side search pattern", () => {
+    expect(normalizeRankingSearch("  M%_ina\\ ")).toBe("mina");
   });
 });

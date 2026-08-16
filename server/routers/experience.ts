@@ -1,8 +1,8 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { companies, fileAssets, proctoringEvents, proctoringSessions, reviews, testAttempts, tests, users } from "../../drizzle/schema";
-import { getDb, isCompanyMember } from "../db";
+import { getCompanyForUser, getDb, isCompanyMember } from "../db";
 import { storageGetSignedUrl } from "../storage";
 import { protectedProcedure, router } from "../_core/trpc";
 
@@ -24,6 +24,14 @@ export function matchesMediaFilter(input: { candidateName?: string | null; email
   const search = filter.search?.trim().toLowerCase();
   const text = `${input.candidateName ?? ""} ${input.email ?? ""} ${input.testTitle ?? ""}`.toLowerCase();
   return (!search || text.includes(search)) && (!filter.status || input.applicationStatus === filter.status);
+}
+
+export function normalizeMediaSearch(value: string) {
+  return value.trim().replace(/[\\%_]/g, "").toLowerCase();
+}
+
+export function isLinkedReviewRecording(asset: { id: number; attemptId: number | null; category: string }, attemptId: number, linkedAssetIds: number[]) {
+  return asset.attemptId === attemptId && linkedAssetIds.includes(asset.id) && (asset.category === "camera_recording" || asset.category === "screen_recording");
 }
 
 function forbid(message = "You are not permitted to access this resource."): never {
@@ -63,12 +71,16 @@ export const experienceRouter = router({
 
   companyMediaIndex: protectedProcedure.input(z.object({ search: z.string().trim().max(120).optional(), status: z.enum(["accepted", "rejected", "under review"]).optional() }).optional()).query(async ({ ctx, input }) => {
     if (ctx.user.role !== "company") forbid("Company access is required.");
-    const company = await (async () => { const db = await dbOrFail(); const rows = await db.select({ company: companies }).from(companies).where(sql`${companies.id} in (select companyId from companyMembers where userId = ${ctx.user.id})`).limit(1); return rows[0]?.company; })();
-    if (!company) forbid();
+    const membership = await getCompanyForUser(ctx.user.id);
+    if (!membership) forbid();
     const db = await dbOrFail();
-    const filters = [eq(tests.companyId, company.id)];
+    const filters = [eq(tests.companyId, membership.company.id)];
     if (input?.status) filters.push(eq(testAttempts.applicationStatus, input.status));
-    if (input?.search) filters.push(or(sql`${users.name} like ${`%${input.search}%`}`, sql`${users.email} like ${`%${input.search}%`}`, sql`${tests.title} like ${`%${input.search}%`}`)!);
+    const search = input?.search ? normalizeMediaSearch(input.search) : "";
+    if (search) {
+      const pattern = `%${search}%`;
+      filters.push(or(sql`lower(${users.name}) like ${pattern}`, sql`lower(${users.email}) like ${pattern}`, sql`lower(${tests.title}) like ${pattern}`)!);
+    }
     return db.select({ attempt: testAttempts, test: tests, candidate: users }).from(testAttempts).innerJoin(tests, eq(testAttempts.testId, tests.id)).innerJoin(users, eq(testAttempts.candidateId, users.id)).where(and(...filters)).orderBy(desc(testAttempts.updatedAt));
   }),
 
@@ -86,10 +98,16 @@ export const experienceRouter = router({
     if (!session[0]) return { session: null, events: [], camera: null, screen: null };
     const events = await db.select().from(proctoringEvents).where(eq(proctoringEvents.sessionId, session[0].id)).orderBy(desc(proctoringEvents.occurredAt));
     const assetIds = [session[0].cameraRecordingAssetId, session[0].screenRecordingAssetId].filter((value): value is number => value !== null);
-    const assets = assetIds.length ? await db.select().from(fileAssets).where(and(eq(fileAssets.attemptId, input.attemptId))) : [];
+    const assets = assetIds.length
+      ? await db.select().from(fileAssets).where(and(
+        eq(fileAssets.attemptId, input.attemptId),
+        inArray(fileAssets.id, assetIds),
+        inArray(fileAssets.category, ["camera_recording", "screen_recording"]),
+      ))
+      : [];
     const assetFor = async (assetId: number | null) => {
       if (!assetId) return null;
-      const asset = assets.find(item => item.id === assetId);
+      const asset = assets.find(item => isLinkedReviewRecording(item, input.attemptId, assetIds) && item.id === assetId);
       if (!asset) return null;
       return { id: asset.id, name: asset.originalName, mimeType: asset.mimeType, byteSize: asset.byteSize, url: await storageGetSignedUrl(asset.storageKey) };
     };
