@@ -5,7 +5,7 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
-import { CandidateDashboard, CandidateProfile, CandidateStatus, CompanyAttempts, CompanyDashboard, CompanyProfile, CompanyPublicPage, CompanyTestCreator, CompanyTests, DiscoverCatalog, NotificationsPage, ReviewAttempt, SecureFilesPage, SupervisorAttempts, SupervisorDashboard, TestRunner } from "./pages/Platform";
+import { CandidateDashboard, CandidateProfile, CandidateStatus, CodePlaygroundPage, CompanyAttempts, CompanyDashboard, CompanyProfile, CompanyPublicPage, CompanyRankingPage, CompanyTestCreator, CompanyTests, DiscoverCatalog, NotificationsPage, ReviewAttempt, SecureFilesPage, SupervisorAttempts, SupervisorDashboard, TestRunner } from "./pages/Platform";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -21,6 +21,7 @@ function Router() {
       <Route path={"/company"} component={CompanyDashboard} />
       <Route path={"/company/create-test"} component={CompanyTestCreator} />
       <Route path={"/company/attempts"} component={CompanyAttempts} />
+      <Route path={"/company/ranking"} component={CompanyRankingPage} />
       <Route path={"/company/tests"} component={CompanyTests} />
       <Route path={"/company/profile"} component={CompanyProfile} />
       <Route path={"/company/notifications"} component={NotificationsPage} />
@@ -29,6 +30,7 @@ function Router() {
       <Route path={"/supervisor"} component={SupervisorDashboard} />
       <Route path={"/supervisor/attempts"} component={SupervisorAttempts} />
       <Route path={"/attempt/:id"} component={TestRunner} />
+      <Route path={"/attempt/:attemptId/code/:questionId"} component={CodePlaygroundPage} />
       <Route path={"/companies/:slug"} component={CompanyPublicPage} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}

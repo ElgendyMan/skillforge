@@ -28,3 +28,12 @@
 - [x] Add server unit tests for role authorization, isolation, status transitions, and priority recommendation behavior.
 - [x] Run type checks, unit tests, and visual responsive verification; resolve discovered issues.
 - [x] Save a final project checkpoint and deliver the completed project.
+
+- [ ] Configure RESEND_API_KEY and RESEND_FROM_EMAIL, then validate real email delivery with a test path.
+- [x] Add immediate in-app and email notifications when a company reviews an attempt or changes its application status.
+- [x] Design a sandboxed code execution service with strict language allowlist, time/memory/output limits, no network, and non-persistent workspace.
+- [x] Add candidate code-run API/UI with execution status, stdout/stderr, timeout handling, and audit records.
+- [x] Add ATS export for accepted candidates with CSV download and structured candidate/attempt fields.
+- [x] Add company candidate-ranking dashboard with filters, sorting, pagination, and server-side company isolation.
+- [x] Add tests for email fallback and code execution limits; authorization for ATS export and ranking remains enforced by the company membership procedures and covered by the existing role-isolation suite.
+- [ ] Run final typecheck, tests, build, visual verification, and save a new checkpoint.

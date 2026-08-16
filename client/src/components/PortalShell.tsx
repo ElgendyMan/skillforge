@@ -1,5 +1,5 @@
 import DashboardLayout, { type DashboardNavItem } from "@/components/DashboardLayout";
-import { Bell, BriefcaseBusiness, ClipboardCheck, Compass, LayoutDashboard, LockKeyhole, PlusSquare, ShieldCheck, UserRound } from "lucide-react";
+import { Bell, BriefcaseBusiness, ClipboardCheck, Compass, LayoutDashboard, LockKeyhole, PlusSquare, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 
 type WorkspaceRole = "candidate" | "company" | "supervisor";
 
@@ -16,6 +16,7 @@ const menus: Record<WorkspaceRole, DashboardNavItem[]> = {
     { icon: LayoutDashboard, label: "لوحة الشركة", path: "/company" },
     { icon: PlusSquare, label: "اختبار جديد", path: "/company/create-test" },
     { icon: ClipboardCheck, label: "المحاولات", path: "/company/attempts" },
+    { icon: UsersRound, label: "ترتيب المرشحين", path: "/company/ranking" },
     { icon: BriefcaseBusiness, label: "اختباراتنا", path: "/company/tests" },
     { icon: UserRound, label: "ملف الشركة", path: "/company/profile" },
     { icon: Bell, label: "التنبيهات", path: "/company/notifications" },
