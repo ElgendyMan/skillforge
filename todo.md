@@ -88,4 +88,4 @@
 - [x] Run typecheck, tests, build, visual verification, and save a new checkpoint.
 
 - [x] Add real browser E2E coverage that exercises mismatched role URLs, explanatory UI, and workspace button navigation.
-- [ ] Save a checkpoint after the real browser E2E test passes.
+- [x] Save a checkpoint after the real browser E2E test passes.
