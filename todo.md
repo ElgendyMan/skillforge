@@ -55,4 +55,4 @@
 - [x] Add selectable CSV export columns while preserving safe comparison data and correct CSV escaping.
 - [x] Add regression tests for notification idempotency, template company isolation, and CSV-column selection.
 - [x] Run migration, verification, visual checks, and save a new checkpoint.
-- [ ] Save the verified feedback-notification, filter-template, and CSV-column changes as a new checkpoint.
+- [x] Save the verified feedback-notification, filter-template, and CSV-column changes as a new checkpoint.
