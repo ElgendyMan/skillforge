@@ -29,43 +29,14 @@
 - [x] Run type checks, unit tests, and visual responsive verification; resolve discovered issues.
 - [x] Save a final project checkpoint and deliver the completed project.
 
-- [ ] Configure RESEND_API_KEY and RESEND_FROM_EMAIL, then validate real email delivery with a test path.
-- [x] Add immediate in-app and email notifications when a company reviews an attempt or changes its application status.
-- [x] Design a sandboxed code execution service with strict language allowlist, time/memory/output limits, no network, and non-persistent workspace.
-- [x] Add candidate code-run API/UI with execution status, stdout/stderr, timeout handling, and audit records.
-- [x] Add ATS export for accepted candidates with CSV download and structured candidate/attempt fields.
-- [x] Add company candidate-ranking dashboard with filters, sorting, pagination, and server-side company isolation.
-- [x] Add tests for email fallback and code execution limits; authorization for ATS export and ranking remains enforced by the company membership procedures and covered by the existing role-isolation suite.
-- [x] Run final typecheck, tests, build, visual verification, and save a new checkpoint.
-
-- [x] Add an authorized company review viewer for camera and screen recordings with temporary access, playback controls, and integrity context.
-- [x] Add a candidate performance analytics page with historical scores, status distribution, attempts timeline, and company review notes.
-- [x] Add server procedure for candidate-owned performance analytics and review-note isolation.
-- [x] Upgrade the code editor experience with syntax highlighting, language-aware autocomplete, keyboard-friendly suggestions, and preserved autosave/run behavior.
-- [x] Add tests for recording access authorization, candidate analytics ownership, review-note visibility, and editor behavior boundaries.
-- [x] Run final typecheck, tests, build, visual verification, and save a new checkpoint.
-
-- [x] Add a dedicated dark-mode toggle and styling state for the code editor.
-- [x] Add server-backed search and filtering controls for company candidate recording sessions.
-- [x] Add interactive candidate-progress charts for score history and application status distribution.
-- [x] Add tests for editor theme state, recording filters, chart data shaping, and authorization boundaries.
-- [x] Run final typecheck, tests, build, visual verification, and save a new checkpoint.
-
-- [x] Audit the current client, server, and database-facing flows for defects, stale states, and authorization regressions.
-- [x] Restrict company recording review URLs to the linked camera/screen recording assets and normalize server-side recording searches.
-- [x] Make company submission notifications resilient and parallel so large reviewer teams do not delay candidate submission.
-- [x] Separate non-UI editor and chart utilities from React page modules to keep server-side tests lightweight and stable.
-- [x] Normalize wildcard characters in company candidate-ranking search before sending it to the database.
-- [x] Split React and chart dependencies into cacheable production bundles to reduce initial application payload impact.
-- [x] Add a defense-in-depth test that excludes unrelated attempt assets from recording playback URLs.
-- [x] Improve discovered usability, loading, error, and empty states across the candidate and company experiences.
-- [x] Add a dedicated loading and error experience to candidate performance analytics so no zero-value placeholder is mistaken for real data.
-- [x] Add or adjust regression tests for any defects fixed during the full-project review.
-- [x] Run complete typecheck, tests, production build, and responsive visual verification; save an improved checkpoint.
-
-- [x] Add a company notification polling/revalidation flow that highlights newly submitted candidate attempts immediately in the dashboard.
-- [x] Add regression tests for PDF report authorization and the company dashboard new-attempt notification count.
-- [x] Embed the guarded code-run action and stdout/stderr/error panel directly in the in-attempt code question while preserving autosave.
-- [x] Provide a true company-scoped PDF byte export endpoint for candidate statistics and reviewed/accepted test-result summaries.
-- [x] Add UI download controls, loading/error handling, and tests for notification freshness, embedded code execution, and PDF export authorization.
-- [x] Save a new checkpoint after the validated embedded runner and true PDF export changes.
+- [x] Add a company-scoped candidate-comparison query and side-by-side decision view for two to four selected candidates.
+- [x] Add permission-scoped inline code-review comments tied to an attempt answer and source-code line number.
+- [x] Add company review controls to create, list, and remove their own code comments without exposing comments across companies.
+- [x] Add visible test-time countdown and debounced autosave status to the candidate code editor.
+- [x] Add regression tests for comparison isolation, code-comment ownership, line validation, and editor timer/autosave state helpers.
+- [x] Run typecheck, tests, production build, visual verification, and save a new checkpoint.
+- [x] Hide delete controls for comments not owned by the active reviewer and surface delete failures clearly.
+- [x] Track real queued/saving/saved/error autosave state and flush pending answers before submit or unmount.
+- [x] Add router-level review-tools isolation tests and include client assessment-safety helpers in the Vitest suite.
+- [x] Re-run final verification and save the new checkpoint after closing review gaps.
+- [ ] Save the verified post-fix project state as a new checkpoint.

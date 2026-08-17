@@ -166,6 +166,16 @@ export const reviews = mysqlTable("reviews", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const codeReviewComments = mysqlTable("codeReviewComments", {
+  id: int("id").autoincrement().primaryKey(),
+  attemptId: int("attemptId").notNull(),
+  attemptAnswerId: int("attemptAnswerId").notNull(),
+  reviewerUserId: int("reviewerUserId").notNull(),
+  lineNumber: int("lineNumber").notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 export const notifications = mysqlTable("notifications", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),

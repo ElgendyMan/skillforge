@@ -1,5 +1,5 @@
 import DashboardLayout, { type DashboardNavItem } from "@/components/DashboardLayout";
-import { Bell, BriefcaseBusiness, ClipboardCheck, Compass, Eye, LayoutDashboard, LockKeyhole, PlusSquare, ShieldCheck, Sparkles, UserRound, UsersRound } from "lucide-react";
+import { Bell, BriefcaseBusiness, ClipboardCheck, Compass, GitCompareArrows, LayoutDashboard, LockKeyhole, PlusSquare, ShieldCheck, UserRound } from "lucide-react";
 
 type WorkspaceRole = "candidate" | "company" | "supervisor";
 
@@ -8,7 +8,6 @@ const menus: Record<WorkspaceRole, DashboardNavItem[]> = {
     { icon: LayoutDashboard, label: "لوحة المرشح", path: "/candidate" },
     { icon: Compass, label: "اكتشف الاختبارات", path: "/discover" },
     { icon: ClipboardCheck, label: "طلباتي", path: "/candidate/status" },
-    { icon: Sparkles, label: "تحليلات أدائي", path: "/candidate/performance" },
     { icon: Bell, label: "التنبيهات", path: "/candidate/notifications" },
     { icon: LockKeyhole, label: "ملفاتي المؤمنة", path: "/candidate/files" },
     { icon: UserRound, label: "ملفي المهني", path: "/candidate/profile" },
@@ -17,8 +16,7 @@ const menus: Record<WorkspaceRole, DashboardNavItem[]> = {
     { icon: LayoutDashboard, label: "لوحة الشركة", path: "/company" },
     { icon: PlusSquare, label: "اختبار جديد", path: "/company/create-test" },
     { icon: ClipboardCheck, label: "المحاولات", path: "/company/attempts" },
-    { icon: Eye, label: "مراجعة التسجيلات", path: "/company/media" },
-    { icon: UsersRound, label: "ترتيب المرشحين", path: "/company/ranking" },
+    { icon: GitCompareArrows, label: "مقارنة المرشحين", path: "/company/compare" },
     { icon: BriefcaseBusiness, label: "اختباراتنا", path: "/company/tests" },
     { icon: UserRound, label: "ملف الشركة", path: "/company/profile" },
     { icon: Bell, label: "التنبيهات", path: "/company/notifications" },

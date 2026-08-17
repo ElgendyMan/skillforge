@@ -1,0 +1,79 @@
+import { TRPCError } from "@trpc/server";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { z } from "zod";
+import { attemptAnswers, candidateProfiles, codeReviewComments, testAttempts, testQuestions, testSections, tests, users } from "../../drizzle/schema";
+import { getCompanyForUser, getDb } from "../db";
+import { protectedProcedure, router } from "../_core/trpc";
+
+export function hasCompanyReviewAccess(role: string) {
+  return role === "company";
+}
+
+export function comparedAttemptsMatchRequest(requestedIds: number[], foundAttemptIds: number[]) {
+  return requestedIds.length === foundAttemptIds.length && requestedIds.every(id => foundAttemptIds.includes(id));
+}
+
+export function canRemoveCodeReviewComment(input: { isCompanyOwner: boolean; isOriginalReviewer: boolean }) {
+  return input.isCompanyOwner && input.isOriginalReviewer;
+}
+
+function requireCompany(role: string) {
+  if (!hasCompanyReviewAccess(role)) throw new TRPCError({ code: "FORBIDDEN", message: "Company access is required." });
+}
+
+async function dbOrFail() {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database is unavailable." });
+  return db;
+}
+
+async function requireCompanyAttempt(userId: number, attemptId: number) {
+  const company = await getCompanyForUser(userId);
+  if (!company) throw new TRPCError({ code: "FORBIDDEN", message: "Company membership is required." });
+  const db = await dbOrFail();
+  const rows = await db.select({ attempt: testAttempts, test: tests }).from(testAttempts).innerJoin(tests, eq(testAttempts.testId, tests.id)).where(and(eq(testAttempts.id, attemptId), eq(tests.companyId, company.company.id))).limit(1);
+  if (!rows[0]) throw new TRPCError({ code: "FORBIDDEN", message: "This attempt is not owned by your company." });
+  return { db, company: company.company, attempt: rows[0].attempt, test: rows[0].test };
+}
+
+export function isValidCodeCommentLine(lineNumber: number, code: string | null) {
+  return Number.isInteger(lineNumber) && lineNumber >= 1 && lineNumber <= Math.max(1, (code ?? "").split("\n").length);
+}
+
+export const reviewToolsRouter = router({
+  comparison: protectedProcedure.input(z.object({ attemptIds: z.array(z.number().int().positive()).min(2).max(4) })).query(async ({ ctx, input }) => {
+    requireCompany(ctx.user.role);
+    const company = await getCompanyForUser(ctx.user.id);
+    if (!company) throw new TRPCError({ code: "FORBIDDEN", message: "Company membership is required." });
+    const db = await dbOrFail();
+    const rows = await db.select({ attempt: testAttempts, test: tests, candidate: users, profile: candidateProfiles }).from(testAttempts).innerJoin(tests, eq(testAttempts.testId, tests.id)).innerJoin(users, eq(testAttempts.candidateId, users.id)).leftJoin(candidateProfiles, eq(candidateProfiles.userId, users.id)).where(and(eq(tests.companyId, company.company.id), inArray(testAttempts.id, input.attemptIds)));
+    if (!comparedAttemptsMatchRequest(input.attemptIds, rows.map(row => row.attempt.id))) throw new TRPCError({ code: "FORBIDDEN", message: "One or more attempts are outside your company scope." });
+    return input.attemptIds.map(id => rows.find(row => row.attempt.id === id)!);
+  }),
+  comments: router({
+    list: protectedProcedure.input(z.object({ attemptId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      requireCompany(ctx.user.role);
+      const { db } = await requireCompanyAttempt(ctx.user.id, input.attemptId);
+      return db.select({ comment: codeReviewComments, reviewer: users }).from(codeReviewComments).innerJoin(users, eq(codeReviewComments.reviewerUserId, users.id)).where(eq(codeReviewComments.attemptId, input.attemptId)).orderBy(desc(codeReviewComments.createdAt));
+    }),
+    create: protectedProcedure.input(z.object({ attemptId: z.number().int().positive(), attemptAnswerId: z.number().int().positive(), lineNumber: z.number().int().min(1).max(5000), body: z.string().trim().min(1).max(2000) })).mutation(async ({ ctx, input }) => {
+      requireCompany(ctx.user.role);
+      const { db } = await requireCompanyAttempt(ctx.user.id, input.attemptId);
+      const answer = await db.select({ answer: attemptAnswers, question: testQuestions, section: testSections }).from(attemptAnswers).innerJoin(testQuestions, eq(attemptAnswers.questionId, testQuestions.id)).innerJoin(testSections, eq(testQuestions.sectionId, testSections.id)).where(and(eq(attemptAnswers.id, input.attemptAnswerId), eq(attemptAnswers.attemptId, input.attemptId))).limit(1);
+      if (!answer[0] || answer[0].question.type !== "code" || !isValidCodeCommentLine(input.lineNumber, answer[0].answer.codeAnswer)) throw new TRPCError({ code: "BAD_REQUEST", message: "Comment must point to a valid submitted code line." });
+      const result = await db.insert(codeReviewComments).values({ ...input, reviewerUserId: ctx.user.id });
+      return { id: Number(result[0].insertId) };
+    }),
+    remove: protectedProcedure.input(z.object({ commentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      requireCompany(ctx.user.role);
+      const db = await dbOrFail();
+      const rows = await db.select({ comment: codeReviewComments, test: tests }).from(codeReviewComments).innerJoin(testAttempts, eq(codeReviewComments.attemptId, testAttempts.id)).innerJoin(tests, eq(testAttempts.testId, tests.id)).where(eq(codeReviewComments.id, input.commentId)).limit(1);
+      const company = await getCompanyForUser(ctx.user.id);
+      const isCompanyOwner = Boolean(rows[0] && company && rows[0].test.companyId === company.company.id);
+      const isOriginalReviewer = rows[0]?.comment.reviewerUserId === ctx.user.id;
+      if (!canRemoveCodeReviewComment({ isCompanyOwner, isOriginalReviewer })) throw new TRPCError({ code: "FORBIDDEN", message: "Only the original reviewer may remove this comment." });
+      await db.delete(codeReviewComments).where(eq(codeReviewComments.id, input.commentId));
+      return { success: true };
+    }),
+  }),
+});

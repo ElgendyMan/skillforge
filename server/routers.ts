@@ -3,8 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { accountRouter, candidateRouter, catalogRouter, companyRouter, fileRouter, notificationRouter, proctoringRouter, supervisorRouter } from "./routers/hiring";
-import { experienceRouter } from "./routers/experience";
-import { enhancementRouter } from "./routers/enhancements";
+import { reviewToolsRouter } from "./routers/reviewTools";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -27,8 +26,7 @@ export const appRouter = router({
   files: fileRouter,
   notifications: notificationRouter,
   supervisor: supervisorRouter,
-  experience: experienceRouter,
-  enhancements: enhancementRouter,
+  reviewTools: reviewToolsRouter,
 });
 
 export type AppRouter = typeof appRouter;
