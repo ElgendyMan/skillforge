@@ -190,6 +190,17 @@ export const comparisonFilterTemplates = mysqlTable("comparisonFilterTemplates",
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const candidateAnnotations = mysqlTable("candidateAnnotations", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").notNull(),
+  candidateId: int("candidateId").notNull(),
+  note: text("note").notNull(),
+  tags: json("tags").$type<string[]>().notNull(),
+  updatedByUserId: int("updatedByUserId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => [unique("candidate_annotation_company_candidate_unique").on(table.companyId, table.candidateId)]);
+
 export const notifications = mysqlTable("notifications", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),

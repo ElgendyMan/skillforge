@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { z } from "zod";
-import { attemptAnswers, candidateProfiles, codeReviewComments, comparisonFilterTemplates, notifications, testAttempts, testQuestions, testSections, tests, users } from "../../drizzle/schema";
+import { attemptAnswers, candidateAnnotations, candidateProfiles, codeReviewComments, comparisonFilterTemplates, notifications, testAttempts, testQuestions, testSections, tests, users } from "../../drizzle/schema";
 import { getCompanyForUser, getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 
@@ -17,6 +17,7 @@ export function canRemoveComparisonTemplate(input: { isCompanyOwner: boolean; is
 export function isFinalApplicationStatus(status: string) { return status === "accepted" || status === "rejected"; }
 export function isWithinSubmittedRange(submittedAt: Date | null, filters: Pick<ComparisonFilters, "submittedFrom" | "submittedTo">) { return Boolean(submittedAt) && (!filters.submittedFrom || submittedAt! >= filters.submittedFrom) && (!filters.submittedTo || submittedAt! <= filters.submittedTo); }
 export function isValidCodeCommentLine(lineNumber: number, code: string | null) { return Number.isInteger(lineNumber) && lineNumber >= 1 && lineNumber <= Math.max(1, (code ?? "").split("\n").length); }
+export function normalizeCandidateTags(tags: string[]) { return Array.from(new Set(tags.map(tag => tag.trim().replace(/\s+/g, " ")).filter(Boolean))).slice(0, 12); }
 
 function requireCompany(role: string) { if (!hasCompanyReviewAccess(role)) throw new TRPCError({ code: "FORBIDDEN", message: "Company access is required." }); }
 async function dbOrFail() { const db = await getDb(); if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database is unavailable." }); return db; }
@@ -60,9 +61,35 @@ export const reviewToolsRouter = router({
   }),
   comparison: protectedProcedure.input(z.object({ attemptIds: z.array(z.number().int().positive()).min(2).max(4) })).query(async ({ ctx, input }) => {
     requireCompany(ctx.user.role);
-    const { rows } = await comparisonRowsForCompany(ctx.user.id, {}, input.attemptIds);
+    const { company, rows } = await comparisonRowsForCompany(ctx.user.id, {}, input.attemptIds);
     if (!comparedAttemptsMatchRequest(input.attemptIds, rows.map(row => row.attempt.id))) throw new TRPCError({ code: "FORBIDDEN", message: "One or more attempts are outside your company scope." });
-    return input.attemptIds.map(id => rows.find(row => row.attempt.id === id)!);
+    const db = await dbOrFail();
+    const candidateIds = Array.from(new Set(rows.map(row => row.candidate.id)));
+    const annotations = candidateIds.length ? await db.select().from(candidateAnnotations).where(and(eq(candidateAnnotations.companyId, company.id), inArray(candidateAnnotations.candidateId, candidateIds))) : [];
+    const annotationByCandidateId = new Map(annotations.map(annotation => [annotation.candidateId, annotation]));
+    return input.attemptIds.map(id => {
+      const row = rows.find(candidate => candidate.attempt.id === id)!;
+      return { ...row, annotation: annotationByCandidateId.get(row.candidate.id) ?? null };
+    });
+  }),
+  candidateAnnotations: router({
+    upsert: protectedProcedure.input(z.object({ attemptId: z.number().int().positive(), note: z.string().trim().max(3000).optional(), tags: z.array(z.string().trim().min(1).max(40)).max(12) })).mutation(async ({ ctx, input }) => {
+      requireCompany(ctx.user.role);
+      const owned = await requireCompanyAttempt(ctx.user.id, input.attemptId);
+      const tags = normalizeCandidateTags(input.tags);
+      const note = input.note?.trim() ?? "";
+      const existing = await owned.db.select().from(candidateAnnotations).where(and(eq(candidateAnnotations.companyId, owned.company.id), eq(candidateAnnotations.candidateId, owned.attempt.candidateId))).limit(1);
+      if (!note && !tags.length) {
+        if (existing[0]) await owned.db.delete(candidateAnnotations).where(eq(candidateAnnotations.id, existing[0].id));
+        return { removed: Boolean(existing[0]), annotation: null };
+      }
+      if (existing[0]) {
+        await owned.db.update(candidateAnnotations).set({ note, tags, updatedByUserId: ctx.user.id }).where(eq(candidateAnnotations.id, existing[0].id));
+        return { removed: false, annotation: { ...existing[0], note, tags, updatedByUserId: ctx.user.id } };
+      }
+      const result = await owned.db.insert(candidateAnnotations).values({ companyId: owned.company.id, candidateId: owned.attempt.candidateId, note, tags, updatedByUserId: ctx.user.id });
+      return { removed: false, annotation: { id: Number(result[0].insertId), companyId: owned.company.id, candidateId: owned.attempt.candidateId, note, tags, updatedByUserId: ctx.user.id } };
+    }),
   }),
   templates: router({
     list: protectedProcedure.query(async ({ ctx }) => {

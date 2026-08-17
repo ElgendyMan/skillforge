@@ -13,6 +13,7 @@ function lazyNamed<T extends Record<string, React.ComponentType<any>>>(loader: (
 
 const platform = () => import("./pages/Platform");
 const enhancers = () => import("./pages/AssessmentEnhancers");
+const comparisonExperience = () => import("./pages/CompanyComparisonExperience");
 const CandidateDashboard = lazyNamed(platform, "CandidateDashboard");
 const CandidateProfile = lazyNamed(platform, "CandidateProfile");
 const CandidateStatus = lazyNamed(enhancers, "CandidateStatus");
@@ -27,7 +28,7 @@ const NotificationsPage = lazyNamed(platform, "NotificationsPage");
 const SecureFilesPage = lazyNamed(platform, "SecureFilesPage");
 const SupervisorAttempts = lazyNamed(platform, "SupervisorAttempts");
 const SupervisorDashboard = lazyNamed(platform, "SupervisorDashboard");
-const CompanyComparison = lazyNamed(enhancers, "CompanyComparison");
+const CompanyComparison = lazyNamed(comparisonExperience, "CompanyComparison");
 const ReviewAttempt = lazyNamed(enhancers, "ReviewAttempt");
 const TestRunner = lazyNamed(enhancers, "TestRunner");
 

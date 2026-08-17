@@ -70,3 +70,12 @@
 - [x] Verify company-dashboard responsive structure and document the authenticated narrow-viewport smoke test required after the first company workspace is activated.
 - [x] Verify signed storage delivery and external analytics loading with the final production headers; no company logo exists yet in the audit database.
 - [x] Re-run release validation and save the final production checkpoint after closing audit gaps.
+- [x] Add company-scoped candidate notes and custom tags that are editable from the comparison view.
+- [x] Show candidate notes and tags in comparison cards without exposing them outside the owning company.
+- [x] Improve the company dashboard and comparison controls for narrow mobile layouts.
+- [x] Add export loading animation, disabled state, and success/failure confirmation for CSV and PDF comparison exports.
+- [x] Add regression tests for notes/tags isolation and export interaction states, then verify mobile layouts.
+- [x] Run migration, complete verification, and save a new checkpoint.
+- [x] Add source-level regression coverage for export loading, disabled controls, and success/failure confirmations.
+- [x] Add responsive-structure regression coverage for the company comparison and dashboard shell.
+- [x] Reconfirm responsive company-dashboard structure; run a final authenticated data-flow smoke test when company attempts exist, then save the checkpoint.

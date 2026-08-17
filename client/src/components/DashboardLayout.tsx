@@ -59,6 +59,6 @@ function DashboardLayoutContent({ children, brand, roleLabel, items, setSidebarW
       </Sidebar>
       {!isMobile && <div className="absolute left-0 top-0 z-50 h-full w-1 cursor-col-resize hover:bg-cyan-300/30" onMouseDown={() => setResizing(true)} />}
     </div>
-    <SidebarInset className="min-w-0 bg-[#07101f]">{isMobile && <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/5 bg-[#07101f]/90 px-4 backdrop-blur"><SidebarTrigger className="text-slate-300"><PanelLeft /></SidebarTrigger><span className="font-semibold text-white">{brand}</span></header>}<main className="min-h-screen">{children}</main></SidebarInset>
+    <SidebarInset className="min-w-0 w-full max-w-full overflow-x-hidden bg-[#07101f]">{isMobile && <header className="sticky top-0 z-30 flex h-16 min-w-0 items-center gap-3 border-b border-white/5 bg-[#07101f]/90 px-4 backdrop-blur"><SidebarTrigger className="shrink-0 text-slate-300"><PanelLeft /></SidebarTrigger><span className="truncate font-semibold text-white">{brand}</span></header>}<main className="min-h-screen min-w-0">{children}</main></SidebarInset>
   </>;
 }

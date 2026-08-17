@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import type { TrpcContext } from "../_core/context";
-import { canRemoveCodeReviewComment, canRemoveComparisonTemplate, comparedAttemptsMatchRequest, hasCompanyReviewAccess, isFinalApplicationStatus, isValidCodeCommentLine, isWithinSubmittedRange } from "./reviewTools";
+import { canRemoveCodeReviewComment, canRemoveComparisonTemplate, comparedAttemptsMatchRequest, hasCompanyReviewAccess, isFinalApplicationStatus, isValidCodeCommentLine, isWithinSubmittedRange, normalizeCandidateTags } from "./reviewTools";
 
 function createContext(role: "candidate" | "company" | "supervisor"): TrpcContext {
   return { user: { id: 42, openId: `review-tools-${role}`, name: "Test user", email: "test@example.com", loginMethod: "test", role, createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] };
@@ -51,6 +51,14 @@ describe("review tool procedures", () => {
     await expect(supervisor.reviewTools.comments.list({ attemptId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(candidate.reviewTools.comments.remove({ commentId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(candidate.reviewTools.comparisonCandidates({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(candidate.reviewTools.candidateAnnotations.upsert({ attemptId: 1, note: "خاص", tags: ["مناسب"] })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("candidate annotation tags", () => {
+  it("normalizes tags, removes duplicates, and enforces the team-facing limit", () => {
+    expect(normalizeCandidateTags(["  مناسب للمقابلة ", "قوي   في  Burp", "مناسب للمقابلة", ""])).toEqual(["مناسب للمقابلة", "قوي في Burp"]);
+    expect(normalizeCandidateTags(Array.from({ length: 15 }, (_, index) => `tag-${index}`))).toHaveLength(12);
   });
 });
 
