@@ -39,4 +39,4 @@
 - [x] Track real queued/saving/saved/error autosave state and flush pending answers before submit or unmount.
 - [x] Add router-level review-tools isolation tests and include client assessment-safety helpers in the Vitest suite.
 - [x] Re-run final verification and save the new checkpoint after closing review gaps.
-- [ ] Save the verified post-fix project state as a new checkpoint.
+- [x] Save the verified post-fix project state as a new checkpoint.
