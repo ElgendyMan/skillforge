@@ -56,3 +56,17 @@
 - [x] Add regression tests for notification idempotency, template company isolation, and CSV-column selection.
 - [x] Run migration, verification, visual checks, and save a new checkpoint.
 - [x] Save the verified feedback-notification, filter-template, and CSV-column changes as a new checkpoint.
+- [x] Audit production configuration, environment usage, dependency health, and build output.
+- [x] Audit server authorization, data isolation, notification idempotency, and database migration consistency.
+- [x] Audit client loading, error boundaries, accessibility, responsive behavior, and production performance.
+- [x] Fix all verified production blockers and add targeted regression coverage.
+- [x] Resolve dashboard-route fallback behavior and replace the generic 404 with a branded RTL SkillForge recovery state.
+- [x] Fix mobile horizontal overflow in the company dashboard and verify company views at narrow widths.
+- [x] Verify and harden Express 5 storage-proxy matching with an automated route-level regression test.
+- [x] Verify all lazy-loaded route export names at build/test time and fix any mismatches.
+- [x] Reconcile production resource headers with external analytics and logo delivery after browser verification.
+- [x] Run complete production verification, document readiness, and save a release checkpoint.
+- [x] Perform and document a focused accessibility pass for keyboard focus, labels, semantic structure, and recovery states.
+- [x] Verify company-dashboard responsive structure and document the authenticated narrow-viewport smoke test required after the first company workspace is activated.
+- [x] Verify signed storage delivery and external analytics loading with the final production headers; no company logo exists yet in the audit database.
+- [x] Re-run release validation and save the final production checkpoint after closing audit gaps.

@@ -33,8 +33,9 @@
 
 :root { --radius: 0.8rem; --background: oklch(0.11 0.03 258); --foreground: oklch(0.96 0.01 250); --card: oklch(0.15 0.032 258); --card-foreground: oklch(0.96 0.01 250); --popover: oklch(0.15 0.032 258); --popover-foreground: oklch(0.96 0.01 250); --primary: oklch(0.83 0.14 196); --primary-foreground: oklch(0.16 0.03 258); --secondary: oklch(0.2 0.03 258); --secondary-foreground: oklch(0.96 0.01 250); --muted: oklch(0.2 0.03 258); --muted-foreground: oklch(0.67 0.03 252); --accent: oklch(0.23 0.05 258); --accent-foreground: oklch(0.96 0.01 250); --destructive: oklch(0.65 0.2 25); --border: oklch(0.32 0.04 258 / .75); --input: oklch(0.26 0.04 258); --ring: oklch(0.83 0.14 196); }
 * { border-color: var(--border); }
-html { background: #07101f; }
-body { min-width: 320px; background: #07101f; color: #eff6ff; font-family: var(--font-sans); }
+html { background: #07101f; overflow-x: hidden; }
+body { min-width: 320px; overflow-x: hidden; background: #07101f; color: #eff6ff; font-family: var(--font-sans); }
+#root { min-height: 100%; max-width: 100%; overflow-x: hidden; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button:active { transform: scale(.98); }
 .page-wrap { max-width: 1440px; margin-inline: auto; padding: 32px 40px 56px; }

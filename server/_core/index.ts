@@ -31,9 +31,19 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.disable("x-powered-by");
+  app.set("trust proxy", 1);
+  app.use((_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("Permissions-Policy", "camera=(self), microphone=(), geolocation=(), payment=()");
+    next();
+  });
+  app.use(express.json({ limit: "12mb" }));
+  app.use(express.urlencoded({ limit: "12mb", extended: true }));
+  app.get("/healthz", (_req, res) => res.status(200).json({ status: "ok" }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   // tRPC API
@@ -50,6 +60,11 @@ async function startServer() {
   } else {
     serveStatic(app);
   }
+  app.use((error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("Unhandled request error", error);
+    if (res.headersSent) return next(error);
+    res.status(500).json({ error: "Internal server error" });
+  });
 
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);
@@ -63,4 +78,7 @@ async function startServer() {
   });
 }
 
-startServer().catch(console.error);
+startServer().catch(error => {
+  console.error("Server failed to start", error);
+  process.exit(1);
+});

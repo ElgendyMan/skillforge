@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Redirect, Route, Switch } from "wouter";
 import { lazy, Suspense } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -38,11 +38,13 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/discover"} component={DiscoverCatalog} />
       <Route path={"/candidate"} component={CandidateDashboard} />
+      <Route path={"/candidate/dashboard"}><Redirect to="/candidate" /></Route>
       <Route path={"/candidate/profile"} component={CandidateProfile} />
       <Route path={"/candidate/status"} component={CandidateStatus} />
       <Route path={"/candidate/notifications"} component={NotificationsPage} />
       <Route path={"/candidate/files"} component={SecureFilesPage} />
       <Route path={"/company"} component={CompanyDashboard} />
+      <Route path={"/company/dashboard"}><Redirect to="/company" /></Route>
       <Route path={"/company/create-test"} component={CompanyTestCreator} />
       <Route path={"/company/attempts"} component={CompanyAttempts} />
       <Route path={"/company/compare"} component={CompanyComparison} />

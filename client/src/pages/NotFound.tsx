@@ -1,52 +1,17 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle, Home } from "lucide-react";
+import { ArrowRight, Compass, ShieldAlert } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function NotFound() {
   const [, setLocation] = useLocation();
-
-  const handleGoHome = () => {
-    setLocation("/");
-  };
-
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-      <Card className="w-full max-w-lg mx-4 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-        <CardContent className="pt-8 pb-8 text-center">
-          <div className="flex justify-center mb-6">
-            <div className="relative">
-              <div className="absolute inset-0 bg-red-100 rounded-full animate-pulse" />
-              <AlertCircle className="relative h-16 w-16 text-red-500" />
-            </div>
-          </div>
-
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">404</h1>
-
-          <h2 className="text-xl font-semibold text-slate-700 mb-4">
-            Page Not Found
-          </h2>
-
-          <p className="text-slate-600 mb-8 leading-relaxed">
-            Sorry, the page you are looking for doesn't exist.
-            <br />
-            It may have been moved or deleted.
-          </p>
-
-          <div
-            id="not-found-button-group"
-            className="flex flex-col sm:flex-row gap-3 justify-center"
-          >
-            <Button
-              onClick={handleGoHome}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
-            >
-              <Home className="w-4 h-4 mr-2" />
-              Go Home
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  return <main dir="rtl" className="relative flex min-h-screen w-full max-w-full items-center justify-center overflow-x-hidden bg-[#07101f] px-5 text-right text-slate-100">
+    <div className="pointer-events-none absolute inset-0 opacity-60 [background-image:radial-gradient(circle_at_18%_18%,rgba(34,211,238,.12),transparent_25%),radial-gradient(circle_at_82%_76%,rgba(167,139,250,.11),transparent_24%)]" />
+    <section className="relative w-full min-w-0 max-w-xl rounded-3xl border border-white/10 bg-slate-950/50 p-8 shadow-2xl backdrop-blur md:p-12">
+      <div className="flex items-center justify-between gap-4"><span className="mono text-xs tracking-[.24em] text-cyan-200">SKILLFORGE · RECOVERY</span><span className="grid h-11 w-11 place-items-center rounded-2xl border border-amber-300/20 bg-amber-300/10 text-amber-200"><ShieldAlert className="h-5 w-5" /></span></div>
+      <p className="mt-10 text-6xl font-semibold tracking-tight text-white">404</p>
+      <h1 className="mt-3 text-2xl font-semibold text-white">المسار ده مش موجود.</h1>
+      <p className="mt-3 max-w-md text-sm leading-7 text-slate-400">ممكن يكون الرابط اتغيّر أو الصفحة مش متاحة لحسابك. ارجع للمساحة الرئيسية واكمل من هناك.</p>
+      <div className="mt-8 flex flex-wrap gap-3"><Button onClick={() => setLocation("/")} className="bg-cyan-300 text-slate-950 hover:bg-cyan-200"><ArrowRight className="ml-2 h-4 w-4" />الرئيسية</Button><Button variant="outline" onClick={() => window.history.back()} className="border-white/10 bg-white/[.03] text-slate-200 hover:bg-white/[.07]"><Compass className="ml-2 h-4 w-4" />ارجع خطوة</Button></div>
+    </section>
+  </main>;
 }
