@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Redirect, Route, Switch, useLocation } from "wouter";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
@@ -40,6 +40,10 @@ function workspaceForRole(role: AppRole) {
   return role === "candidate" ? "/candidate" : role === "company" ? "/company" : "/supervisor";
 }
 
+function roleLabel(role: AppRole) {
+  return role === "candidate" ? "المرشح" : role === "company" ? "الشركة" : "المشرف";
+}
+
 function AuthRequiredScreen() {
   return <div className="grid min-h-screen place-items-center bg-[#07101f] p-6 text-center" dir="rtl"><div className="glass-panel max-w-md p-8"><p className="eyebrow">SkillForge Workspace</p><h1 className="mt-3 text-2xl font-semibold text-white">سجّل دخولك عشان تكمل</h1><p className="mt-3 text-sm leading-7 text-slate-400">المنصة بتفتح كل مساحة حسب دور الحساب وصلاحياته.</p><button onClick={() => startLogin()} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-200">تسجيل الدخول</button></div></div>;
 }
@@ -47,13 +51,12 @@ function AuthRequiredScreen() {
 function RoleGate({ expected, children }: { expected: AppRole; children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const [, setLocation] = useLocation();
-  useEffect(() => {
-    if (loading || !user || user.role === expected) return;
-    setLocation(workspaceForRole(user.role as AppRole));
-  }, [expected, loading, setLocation, user]);
   if (loading) return <div className="grid min-h-screen place-items-center bg-[#07101f] text-sm text-slate-400" dir="rtl">جاري تجهيز مساحتك...</div>;
   if (!user) return <AuthRequiredScreen />;
-  if (user.role !== expected) return <div className="grid min-h-screen place-items-center bg-[#07101f] text-sm text-slate-400" dir="rtl">بنحوّلك لمساحتك الصحيحة...</div>;
+  if (user.role !== expected) {
+    const currentRole = user.role as AppRole;
+    return <div className="grid min-h-screen place-items-center bg-[#07101f] p-6 text-center" dir="rtl"><div className="glass-panel max-w-lg p-8"><div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-amber-300/10 text-amber-200">!</div><p className="eyebrow mt-5">صلاحيات المساحة</p><h1 className="mt-3 text-2xl font-semibold text-white">المسار ده مش متاح لحسابك</h1><p className="mt-3 text-sm leading-7 text-slate-400">أنت داخل بحساب <strong className="text-slate-200">{roleLabel(currentRole)}</strong>، بينما المسار ده مخصص لـ <strong className="text-slate-200">{roleLabel(expected)}</strong>. بيانات كل مساحة محمية ومفصولة حسب الدور.</p><button onClick={() => setLocation(workspaceForRole(currentRole))} className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200">افتح مساحة {roleLabel(currentRole)}</button></div></div>;
+  }
   return <>{children}</>;
 }
 

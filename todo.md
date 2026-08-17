@@ -83,3 +83,9 @@
 - [x] Add regression coverage for role-based landing routes and disabled candidate queries for non-candidates.
 - [x] Run typecheck, tests, visual verification, and save a checkpoint for the role-routing fix.
 - [x] Save the verified supervisor role-routing fix as a new checkpoint.
+- [x] Show a clear permission-mismatch message with the current role and a button to its workspace instead of silently redirecting.
+- [x] Add E2E-style coverage for candidate, company, and supervisor route protection and workspace switching.
+- [x] Run typecheck, tests, build, visual verification, and save a new checkpoint.
+
+- [x] Add real browser E2E coverage that exercises mismatched role URLs, explanatory UI, and workspace button navigation.
+- [ ] Save a checkpoint after the real browser E2E test passes.
