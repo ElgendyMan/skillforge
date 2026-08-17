@@ -79,3 +79,7 @@
 - [x] Add source-level regression coverage for export loading, disabled controls, and success/failure confirmations.
 - [x] Add responsive-structure regression coverage for the company comparison and dashboard shell.
 - [x] Reconfirm responsive company-dashboard structure; run a final authenticated data-flow smoke test when company attempts exist, then save the checkpoint.
+- [x] Fix /candidate role gating so supervisor accounts are redirected to the supervisor workspace before candidate queries run.
+- [x] Add regression coverage for role-based landing routes and disabled candidate queries for non-candidates.
+- [x] Run typecheck, tests, visual verification, and save a checkpoint for the role-routing fix.
+- [ ] Save the verified supervisor role-routing fix as a new checkpoint.
