@@ -40,3 +40,13 @@
 - [x] Add router-level review-tools isolation tests and include client assessment-safety helpers in the Vitest suite.
 - [x] Re-run final verification and save the new checkpoint after closing review gaps.
 - [x] Save the verified post-fix project state as a new checkpoint.
+- [x] Add structured job titles to tests and company-scoped comparison filters for job title, question type, and submitted-date range.
+- [x] Publish read-only code-review comments to the owning candidate only after accepted or rejected decisions.
+- [x] Add protected comparison export as CSV and a browser-printable RTL PDF view.
+- [x] Split heavy client routes and configure Vite manual chunks to reduce the initial JavaScript bundle.
+- [x] Add regression tests for filters, published-feedback privacy, CSV escaping, lazy routes, and production chunk output.
+- [x] Run migration, verification, visual checks, and save a new checkpoint.
+- [x] Add an automated source-level regression test for lazy route registration and Suspense fallback.
+- [x] Add an automated assertion that the production build emits deferred page chunks and explicit vendor chunks.
+- [x] Re-run the complete verification after bundle-regression coverage and save a final checkpoint.
+- [ ] Save the verified filter, feedback, export, and bundle-regression changes as a final checkpoint.

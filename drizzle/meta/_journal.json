@@ -29,6 +29,13 @@
       "when": 1786968331234,
       "tag": "0003_nosy_menace",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1786969861891,
+      "tag": "0004_narrow_king_cobra",
+      "breakpoints": true
     }
   ]
 }

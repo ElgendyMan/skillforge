@@ -2,16 +2,39 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
+import { lazy, Suspense } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
-import { CandidateDashboard, CandidateProfile, CandidateStatus, CompanyAttempts, CompanyDashboard, CompanyProfile, CompanyPublicPage, CompanyTestCreator, CompanyTests, DiscoverCatalog, NotificationsPage, SecureFilesPage, SupervisorAttempts, SupervisorDashboard } from "./pages/Platform";
-import { CompanyComparison, ReviewAttempt, TestRunner } from "./pages/AssessmentEnhancers";
+
+function lazyNamed<T extends Record<string, React.ComponentType<any>>>(loader: () => Promise<T>, name: keyof T) {
+  return lazy(async () => ({ default: (await loader())[name] }));
+}
+
+const platform = () => import("./pages/Platform");
+const enhancers = () => import("./pages/AssessmentEnhancers");
+const CandidateDashboard = lazyNamed(platform, "CandidateDashboard");
+const CandidateProfile = lazyNamed(platform, "CandidateProfile");
+const CandidateStatus = lazyNamed(enhancers, "CandidateStatus");
+const CompanyAttempts = lazyNamed(platform, "CompanyAttempts");
+const CompanyDashboard = lazyNamed(platform, "CompanyDashboard");
+const CompanyProfile = lazyNamed(platform, "CompanyProfile");
+const CompanyPublicPage = lazyNamed(platform, "CompanyPublicPage");
+const CompanyTestCreator = lazyNamed(platform, "CompanyTestCreator");
+const CompanyTests = lazyNamed(platform, "CompanyTests");
+const DiscoverCatalog = lazyNamed(platform, "DiscoverCatalog");
+const NotificationsPage = lazyNamed(platform, "NotificationsPage");
+const SecureFilesPage = lazyNamed(platform, "SecureFilesPage");
+const SupervisorAttempts = lazyNamed(platform, "SupervisorAttempts");
+const SupervisorDashboard = lazyNamed(platform, "SupervisorDashboard");
+const CompanyComparison = lazyNamed(enhancers, "CompanyComparison");
+const ReviewAttempt = lazyNamed(enhancers, "ReviewAttempt");
+const TestRunner = lazyNamed(enhancers, "TestRunner");
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
-    <Switch>
+    <Suspense fallback={<div className="grid min-h-screen place-items-center bg-[#07101f] text-sm text-slate-400">جاري تحميل المساحة...</div>}><Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/discover"} component={DiscoverCatalog} />
       <Route path={"/candidate"} component={CandidateDashboard} />
@@ -35,7 +58,7 @@ function Router() {
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
-    </Switch>
+    </Switch></Suspense>
   );
 }
 

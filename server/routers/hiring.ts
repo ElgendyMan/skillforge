@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   attemptAnswers,
   candidateProfiles,
+  codeReviewComments,
   companies,
   companyMembers,
   fileAssets,
@@ -229,6 +230,13 @@ export const candidateRouter = router({
       return db.select({ attempt: testAttempts, test: tests, company: companies }).from(testAttempts).innerJoin(tests, eq(testAttempts.testId, tests.id)).innerJoin(companies, eq(tests.companyId, companies.id)).where(eq(testAttempts.candidateId, ctx.user.id)).orderBy(desc(testAttempts.updatedAt));
     }),
   }),
+  feedback: router({
+    listPublished: protectedProcedure.query(async ({ ctx }) => {
+      requireCandidate(ctx.user.role);
+      const db = await dbOrFail();
+      return db.select({ comment: codeReviewComments, attempt: testAttempts, test: tests, answer: attemptAnswers, question: testQuestions }).from(codeReviewComments).innerJoin(testAttempts, eq(codeReviewComments.attemptId, testAttempts.id)).innerJoin(tests, eq(testAttempts.testId, tests.id)).innerJoin(attemptAnswers, eq(codeReviewComments.attemptAnswerId, attemptAnswers.id)).innerJoin(testQuestions, eq(attemptAnswers.questionId, testQuestions.id)).where(and(eq(testAttempts.candidateId, ctx.user.id), inArray(testAttempts.applicationStatus, ["accepted", "rejected"]))).orderBy(desc(codeReviewComments.createdAt));
+    }),
+  }),
 });
 
 export const accountRouter = router({
@@ -303,14 +311,14 @@ export const companyRouter = router({
   }),
   tests: router({
     create: protectedProcedure.input(z.object({
-      title: z.string().trim().min(3).max(220), summary: z.string().trim().min(20).max(5000), field: z.string().trim().min(2).max(120), level: z.enum(["junior", "mid", "senior"]), durationMinutes: z.number().int().min(5).max(480), status: z.enum(["draft", "published"]), proctoringMode: z.enum(["none", "optional", "required"]),
+      title: z.string().trim().min(3).max(220), jobTitle: z.string().trim().min(2).max(180).nullable().optional(), summary: z.string().trim().min(20).max(5000), field: z.string().trim().min(2).max(120), level: z.enum(["junior", "mid", "senior"]), durationMinutes: z.number().int().min(5).max(480), status: z.enum(["draft", "published"]), proctoringMode: z.enum(["none", "optional", "required"]),
       sections: z.array(z.object({ title: z.string().trim().min(2).max(180), instructions: z.string().max(2000).nullable().optional(), questions: z.array(z.object({ type: questionType, prompt: z.string().trim().min(3).max(10000), guidance: z.string().max(3000).nullable().optional(), points: z.number().int().min(1).max(100), options: z.array(z.object({ id: z.string().min(1).max(100), label: z.string().min(1).max(500) })).max(8).nullable().optional(), correctAnswers: z.array(z.string().min(1).max(100)).max(8).nullable().optional(), evaluationGuide: z.string().max(3000).nullable().optional(), starterCode: z.string().max(20000).nullable().optional(), supportedLanguages: z.array(z.string().max(40)).max(10).nullable().optional() })).min(1).max(30) })).min(1).max(12),
     })).mutation(async ({ ctx, input }) => {
       requireCompany(ctx.user.role);
       const membership = await getCompanyForUser(ctx.user.id);
       if (!membership) forbidden("Create a company profile before publishing a test.");
       const db = await dbOrFail();
-      const result = await db.insert(tests).values({ companyId: membership.company.id, title: input.title, summary: input.summary, field: input.field, level: input.level, durationMinutes: input.durationMinutes, status: input.status, proctoringMode: input.proctoringMode });
+      const result = await db.insert(tests).values({ companyId: membership.company.id, title: input.title, jobTitle: input.jobTitle ?? input.title, summary: input.summary, field: input.field, level: input.level, durationMinutes: input.durationMinutes, status: input.status, proctoringMode: input.proctoringMode });
       const testId = Number(result[0].insertId);
       for (let sectionIndex = 0; sectionIndex < input.sections.length; sectionIndex += 1) {
         const section = input.sections[sectionIndex];

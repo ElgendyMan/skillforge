@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import type { TrpcContext } from "../_core/context";
-import { canRemoveCodeReviewComment, comparedAttemptsMatchRequest, hasCompanyReviewAccess, isValidCodeCommentLine } from "./reviewTools";
+import { canRemoveCodeReviewComment, comparedAttemptsMatchRequest, hasCompanyReviewAccess, isFinalApplicationStatus, isValidCodeCommentLine, isWithinSubmittedRange } from "./reviewTools";
 
 function createContext(role: "candidate" | "company" | "supervisor"): TrpcContext {
   return { user: { id: 42, openId: `review-tools-${role}`, name: "Test user", email: "test@example.com", loginMethod: "test", role, createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] };
@@ -44,5 +44,25 @@ describe("review tool procedures", () => {
     await expect(candidate.reviewTools.comparison({ attemptIds: [1, 2] })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(supervisor.reviewTools.comments.list({ attemptId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(candidate.reviewTools.comments.remove({ commentId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(candidate.reviewTools.comparisonCandidates({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("comparison dates and published feedback", () => {
+  it("matches only submitted attempts inside the selected inclusive date range", () => {
+    expect(isWithinSubmittedRange(new Date("2026-08-10T12:00:00Z"), { submittedFrom: new Date("2026-08-10T00:00:00Z"), submittedTo: new Date("2026-08-10T23:59:59Z") })).toBe(true);
+    expect(isWithinSubmittedRange(new Date("2026-08-09T23:59:59Z"), { submittedFrom: new Date("2026-08-10T00:00:00Z") })).toBe(false);
+    expect(isWithinSubmittedRange(null, {})).toBe(false);
+  });
+
+  it("treats only accepted and rejected decisions as publishable feedback", () => {
+    expect(isFinalApplicationStatus("accepted")).toBe(true);
+    expect(isFinalApplicationStatus("rejected")).toBe(true);
+    expect(isFinalApplicationStatus("under review")).toBe(false);
+  });
+
+  it("rejects company access to the candidate-only published feedback procedure", async () => {
+    const company = appRouter.createCaller(createContext("company"));
+    await expect(company.candidate.feedback.listPublished()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

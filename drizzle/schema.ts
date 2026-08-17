@@ -58,6 +58,7 @@ export const tests = mysqlTable("tests", {
   id: int("id").autoincrement().primaryKey(),
   companyId: int("companyId").notNull(),
   title: varchar("title", { length: 220 }).notNull(),
+  jobTitle: varchar("jobTitle", { length: 180 }),
   summary: text("summary").notNull(),
   field: varchar("field", { length: 120 }).notNull(),
   level: mysqlEnum("level", ["junior", "mid", "senior"]).notNull(),
