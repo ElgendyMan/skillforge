@@ -96,6 +96,10 @@ export function isIntegrityFlagEvent(eventType: z.infer<typeof proctoringEvent>)
   return eventType === "focus_lost" || eventType === "screen_stopped" || eventType === "camera_stopped";
 }
 
+export function shouldPublishFeedbackNotification(input: { decision: string; feedbackCount: number; notificationAlreadyExists: boolean }) {
+  return (input.decision === "accepted" || input.decision === "rejected") && input.feedbackCount > 0 && !input.notificationAlreadyExists;
+}
+
 export function canAccessAttemptAsset(input: { role: string; requestingUserId: number; assetOwnerUserId: number; isCompanyMember: boolean }) {
   return input.role === "supervisor" || input.requestingUserId === input.assetOwnerUserId || input.isCompanyMember;
 }
@@ -352,6 +356,12 @@ export const companyRouter = router({
       const priorityScore = computePriority(owned.attempt.autoScore, input.score, owned.attempt.integrityFlags);
       await db.update(testAttempts).set({ reviewerScore: input.score, applicationStatus: input.decision, priorityScore }).where(eq(testAttempts.id, input.attemptId));
       await db.insert(reviews).values({ attemptId: input.attemptId, reviewerUserId: ctx.user.id, score: input.score, decision: input.decision, notes: input.notes ?? null }).onDuplicateKeyUpdate({ set: { reviewerUserId: ctx.user.id, score: input.score, decision: input.decision, notes: input.notes ?? null } });
+      if (input.decision === "accepted" || input.decision === "rejected") {
+        const [feedbackCount] = await db.select({ value: count() }).from(codeReviewComments).where(eq(codeReviewComments.attemptId, input.attemptId));
+        const notificationKey = `feedback-published-attempt-${input.attemptId}`;
+        const existingNotification = await db.select({ id: notifications.id }).from(notifications).where(eq(notifications.notificationKey, notificationKey)).limit(1);
+        if (shouldPublishFeedbackNotification({ decision: input.decision, feedbackCount: Number(feedbackCount?.value ?? 0), notificationAlreadyExists: Boolean(existingNotification[0]) })) await db.insert(notifications).values({ userId: owned.attempt.candidateId, type: "feedback_published", title: "تم نشر ملاحظات على الكود", content: "ملاحظات مراجعة الكود أصبحت متاحة في صفحة حالة محاولاتك.", notificationKey, emailStatus: "not_configured" });
+      }
       const candidate = await db.select({ email: users.email }).from(users).where(eq(users.id, owned.attempt.candidateId)).limit(1);
       const emailStatus = await deliverEmail({ to: candidate[0]?.email ?? null, subject: "Your SkillForge application status changed", text: `Your assessment application is now ${input.decision}.`, idempotencyKey: `status-changed-${input.attemptId}-${input.decision}` });
       await db.insert(notifications).values({ userId: owned.attempt.candidateId, type: "status_changed", title: "Application status updated", content: `Your assessment application is now ${input.decision}.`, emailStatus });

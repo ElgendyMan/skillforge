@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import type { TrpcContext } from "../_core/context";
-import { canAccessAttemptAsset, canTransitionApplicationStatus, computePriority, isEmailDeliveryConfigured, isIntegrityFlagEvent } from "./hiring";
+import { canAccessAttemptAsset, canTransitionApplicationStatus, computePriority, isEmailDeliveryConfigured, isIntegrityFlagEvent, shouldPublishFeedbackNotification } from "./hiring";
 
 const originalApiKey = process.env.RESEND_API_KEY;
 const originalFrom = process.env.RESEND_FROM_EMAIL;
@@ -39,6 +39,16 @@ describe("proctoring integrity flags", () => {
     expect(isIntegrityFlagEvent("screen_stopped")).toBe(true);
     expect(isIntegrityFlagEvent("camera_stopped")).toBe(true);
     expect(isIntegrityFlagEvent("connection_restored")).toBe(false);
+  });
+});
+
+describe("published feedback notifications", () => {
+  it("notifies only for final decisions with feedback and never repeats an existing notice", () => {
+    expect(shouldPublishFeedbackNotification({ decision: "accepted", feedbackCount: 1, notificationAlreadyExists: false })).toBe(true);
+    expect(shouldPublishFeedbackNotification({ decision: "rejected", feedbackCount: 3, notificationAlreadyExists: false })).toBe(true);
+    expect(shouldPublishFeedbackNotification({ decision: "under review", feedbackCount: 3, notificationAlreadyExists: false })).toBe(false);
+    expect(shouldPublishFeedbackNotification({ decision: "accepted", feedbackCount: 0, notificationAlreadyExists: false })).toBe(false);
+    expect(shouldPublishFeedbackNotification({ decision: "accepted", feedbackCount: 1, notificationAlreadyExists: true })).toBe(false);
   });
 });
 

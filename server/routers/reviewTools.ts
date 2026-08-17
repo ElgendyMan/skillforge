@@ -1,17 +1,19 @@
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { z } from "zod";
-import { attemptAnswers, candidateProfiles, codeReviewComments, testAttempts, testQuestions, testSections, tests, users } from "../../drizzle/schema";
+import { attemptAnswers, candidateProfiles, codeReviewComments, comparisonFilterTemplates, notifications, testAttempts, testQuestions, testSections, tests, users } from "../../drizzle/schema";
 import { getCompanyForUser, getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 
 export const comparisonQuestionType = z.enum(["multiple_choice", "essay", "code", "vulnerability", "file_upload"]);
 export type ComparisonQuestionType = z.infer<typeof comparisonQuestionType>;
 export type ComparisonFilters = { jobTitle?: string; questionType?: ComparisonQuestionType; submittedFrom?: Date; submittedTo?: Date };
+const comparisonFilterInput = z.object({ jobTitle: z.string().trim().min(1).max(180).optional(), questionType: comparisonQuestionType.optional(), submittedFrom: z.coerce.date().optional(), submittedTo: z.coerce.date().optional() }).refine(input => !input.submittedFrom || !input.submittedTo || input.submittedFrom <= input.submittedTo, { message: "Submitted-date range is invalid." });
 
 export function hasCompanyReviewAccess(role: string) { return role === "company"; }
 export function comparedAttemptsMatchRequest(requestedIds: number[], foundAttemptIds: number[]) { return requestedIds.length === foundAttemptIds.length && requestedIds.every(id => foundAttemptIds.includes(id)); }
 export function canRemoveCodeReviewComment(input: { isCompanyOwner: boolean; isOriginalReviewer: boolean }) { return input.isCompanyOwner && input.isOriginalReviewer; }
+export function canRemoveComparisonTemplate(input: { isCompanyOwner: boolean; isOriginalCreator: boolean }) { return input.isCompanyOwner && input.isOriginalCreator; }
 export function isFinalApplicationStatus(status: string) { return status === "accepted" || status === "rejected"; }
 export function isWithinSubmittedRange(submittedAt: Date | null, filters: Pick<ComparisonFilters, "submittedFrom" | "submittedTo">) { return Boolean(submittedAt) && (!filters.submittedFrom || submittedAt! >= filters.submittedFrom) && (!filters.submittedTo || submittedAt! <= filters.submittedTo); }
 export function isValidCodeCommentLine(lineNumber: number, code: string | null) { return Number.isInteger(lineNumber) && lineNumber >= 1 && lineNumber <= Math.max(1, (code ?? "").split("\n").length); }
@@ -51,7 +53,7 @@ export const reviewToolsRouter = router({
     const questions = sections.length ? await db.select().from(testQuestions).where(inArray(testQuestions.sectionId, sections.map(section => section.id))) : [];
     return { jobTitles: Array.from(new Set(companyTests.map(test => test.jobTitle ?? test.title))).sort(), questionTypes: Array.from(new Set(questions.map(question => question.type))) };
   }),
-  comparisonCandidates: protectedProcedure.input(z.object({ jobTitle: z.string().trim().min(1).max(180).optional(), questionType: comparisonQuestionType.optional(), submittedFrom: z.coerce.date().optional(), submittedTo: z.coerce.date().optional() }).refine(input => !input.submittedFrom || !input.submittedTo || input.submittedFrom <= input.submittedTo, { message: "Submitted-date range is invalid." })).query(async ({ ctx, input }) => {
+  comparisonCandidates: protectedProcedure.input(comparisonFilterInput).query(async ({ ctx, input }) => {
     requireCompany(ctx.user.role);
     const { rows } = await comparisonRowsForCompany(ctx.user.id, input);
     return rows.sort((a, b) => b.attempt.priorityScore - a.attempt.priorityScore);
@@ -62,9 +64,35 @@ export const reviewToolsRouter = router({
     if (!comparedAttemptsMatchRequest(input.attemptIds, rows.map(row => row.attempt.id))) throw new TRPCError({ code: "FORBIDDEN", message: "One or more attempts are outside your company scope." });
     return input.attemptIds.map(id => rows.find(row => row.attempt.id === id)!);
   }),
+  templates: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      requireCompany(ctx.user.role);
+      const company = await getCompanyForUser(ctx.user.id);
+      if (!company) throw new TRPCError({ code: "FORBIDDEN", message: "Company membership is required." });
+      const db = await dbOrFail();
+      return db.select().from(comparisonFilterTemplates).where(eq(comparisonFilterTemplates.companyId, company.company.id)).orderBy(desc(comparisonFilterTemplates.updatedAt));
+    }),
+    create: protectedProcedure.input(z.object({ name: z.string().trim().min(2).max(120), filters: comparisonFilterInput })).mutation(async ({ ctx, input }) => {
+      requireCompany(ctx.user.role);
+      const company = await getCompanyForUser(ctx.user.id);
+      if (!company) throw new TRPCError({ code: "FORBIDDEN", message: "Company membership is required." });
+      const db = await dbOrFail();
+      const result = await db.insert(comparisonFilterTemplates).values({ companyId: company.company.id, createdByUserId: ctx.user.id, name: input.name, ...input.filters });
+      return { id: Number(result[0].insertId) };
+    }),
+    remove: protectedProcedure.input(z.object({ templateId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      requireCompany(ctx.user.role);
+      const company = await getCompanyForUser(ctx.user.id);
+      const db = await dbOrFail();
+      const rows = await db.select().from(comparisonFilterTemplates).where(eq(comparisonFilterTemplates.id, input.templateId)).limit(1);
+      if (!canRemoveComparisonTemplate({ isCompanyOwner: Boolean(company && rows[0]?.companyId === company.company.id), isOriginalCreator: rows[0]?.createdByUserId === ctx.user.id })) throw new TRPCError({ code: "FORBIDDEN", message: "Only the template creator may remove it." });
+      await db.delete(comparisonFilterTemplates).where(eq(comparisonFilterTemplates.id, input.templateId));
+      return { success: true };
+    }),
+  }),
   comments: router({
     list: protectedProcedure.input(z.object({ attemptId: z.number().int().positive() })).query(async ({ ctx, input }) => { requireCompany(ctx.user.role); const { db } = await requireCompanyAttempt(ctx.user.id, input.attemptId); return db.select({ comment: codeReviewComments, reviewer: users }).from(codeReviewComments).innerJoin(users, eq(codeReviewComments.reviewerUserId, users.id)).where(eq(codeReviewComments.attemptId, input.attemptId)).orderBy(desc(codeReviewComments.createdAt)); }),
-    create: protectedProcedure.input(z.object({ attemptId: z.number().int().positive(), attemptAnswerId: z.number().int().positive(), lineNumber: z.number().int().min(1).max(5000), body: z.string().trim().min(1).max(2000) })).mutation(async ({ ctx, input }) => { requireCompany(ctx.user.role); const { db } = await requireCompanyAttempt(ctx.user.id, input.attemptId); const answer = await db.select({ answer: attemptAnswers, question: testQuestions }).from(attemptAnswers).innerJoin(testQuestions, eq(attemptAnswers.questionId, testQuestions.id)).where(and(eq(attemptAnswers.id, input.attemptAnswerId), eq(attemptAnswers.attemptId, input.attemptId))).limit(1); if (!answer[0] || answer[0].question.type !== "code" || !isValidCodeCommentLine(input.lineNumber, answer[0].answer.codeAnswer)) throw new TRPCError({ code: "BAD_REQUEST", message: "Comment must point to a valid submitted code line." }); const result = await db.insert(codeReviewComments).values({ ...input, reviewerUserId: ctx.user.id }); return { id: Number(result[0].insertId) }; }),
+    create: protectedProcedure.input(z.object({ attemptId: z.number().int().positive(), attemptAnswerId: z.number().int().positive(), lineNumber: z.number().int().min(1).max(5000), body: z.string().trim().min(1).max(2000) })).mutation(async ({ ctx, input }) => { requireCompany(ctx.user.role); const owned = await requireCompanyAttempt(ctx.user.id, input.attemptId); const answer = await owned.db.select({ answer: attemptAnswers, question: testQuestions }).from(attemptAnswers).innerJoin(testQuestions, eq(attemptAnswers.questionId, testQuestions.id)).where(and(eq(attemptAnswers.id, input.attemptAnswerId), eq(attemptAnswers.attemptId, input.attemptId))).limit(1); if (!answer[0] || answer[0].question.type !== "code" || !isValidCodeCommentLine(input.lineNumber, answer[0].answer.codeAnswer)) throw new TRPCError({ code: "BAD_REQUEST", message: "Comment must point to a valid submitted code line." }); const result = await owned.db.insert(codeReviewComments).values({ ...input, reviewerUserId: ctx.user.id }); const commentId = Number(result[0].insertId); if (isFinalApplicationStatus(owned.attempt.applicationStatus)) await owned.db.insert(notifications).values({ userId: owned.attempt.candidateId, type: "feedback_published", title: "تم نشر ملاحظة جديدة على الكود", content: "أضاف فريق المراجعة ملاحظة جديدة على أحد أسطر الكود في محاولتك.", notificationKey: `feedback-published-comment-${commentId}`, emailStatus: "not_configured" }); return { id: commentId }; }),
     remove: protectedProcedure.input(z.object({ commentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => { requireCompany(ctx.user.role); const db = await dbOrFail(); const rows = await db.select({ comment: codeReviewComments, test: tests }).from(codeReviewComments).innerJoin(testAttempts, eq(codeReviewComments.attemptId, testAttempts.id)).innerJoin(tests, eq(testAttempts.testId, tests.id)).where(eq(codeReviewComments.id, input.commentId)).limit(1); const company = await getCompanyForUser(ctx.user.id); const isCompanyOwner = Boolean(rows[0] && company && rows[0].test.companyId === company.company.id); const isOriginalReviewer = rows[0]?.comment.reviewerUserId === ctx.user.id; if (!canRemoveCodeReviewComment({ isCompanyOwner, isOriginalReviewer })) throw new TRPCError({ code: "FORBIDDEN", message: "Only the original reviewer may remove this comment." }); await db.delete(codeReviewComments).where(eq(codeReviewComments.id, input.commentId)); return { success: true }; }),
   }),
 });

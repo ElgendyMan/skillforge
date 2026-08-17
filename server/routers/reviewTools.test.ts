@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import type { TrpcContext } from "../_core/context";
-import { canRemoveCodeReviewComment, comparedAttemptsMatchRequest, hasCompanyReviewAccess, isFinalApplicationStatus, isValidCodeCommentLine, isWithinSubmittedRange } from "./reviewTools";
+import { canRemoveCodeReviewComment, canRemoveComparisonTemplate, comparedAttemptsMatchRequest, hasCompanyReviewAccess, isFinalApplicationStatus, isValidCodeCommentLine, isWithinSubmittedRange } from "./reviewTools";
 
 function createContext(role: "candidate" | "company" | "supervisor"): TrpcContext {
   return { user: { id: 42, openId: `review-tools-${role}`, name: "Test user", email: "test@example.com", loginMethod: "test", role, createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] };
@@ -24,6 +24,12 @@ describe("review tool access guards", () => {
     expect(canRemoveCodeReviewComment({ isCompanyOwner: true, isOriginalReviewer: true })).toBe(true);
     expect(canRemoveCodeReviewComment({ isCompanyOwner: true, isOriginalReviewer: false })).toBe(false);
     expect(canRemoveCodeReviewComment({ isCompanyOwner: false, isOriginalReviewer: true })).toBe(false);
+  });
+
+  it("allows removing a shared filter template only for its creator inside the owning company", () => {
+    expect(canRemoveComparisonTemplate({ isCompanyOwner: true, isOriginalCreator: true })).toBe(true);
+    expect(canRemoveComparisonTemplate({ isCompanyOwner: true, isOriginalCreator: false })).toBe(false);
+    expect(canRemoveComparisonTemplate({ isCompanyOwner: false, isOriginalCreator: true })).toBe(false);
   });
 });
 

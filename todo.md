@@ -50,3 +50,9 @@
 - [x] Add an automated assertion that the production build emits deferred page chunks and explicit vendor chunks.
 - [x] Re-run the complete verification after bundle-regression coverage and save a final checkpoint.
 - [x] Save the verified filter, feedback, export, and bundle-regression changes as a final checkpoint.
+- [x] Notify the owning candidate in-platform when code-review feedback becomes publishable after a final decision.
+- [x] Add company-scoped saved comparison-filter templates with create, list, apply, and remove operations.
+- [x] Add selectable CSV export columns while preserving safe comparison data and correct CSV escaping.
+- [x] Add regression tests for notification idempotency, template company isolation, and CSV-column selection.
+- [x] Run migration, verification, visual checks, and save a new checkpoint.
+- [ ] Save the verified feedback-notification, filter-template, and CSV-column changes as a new checkpoint.

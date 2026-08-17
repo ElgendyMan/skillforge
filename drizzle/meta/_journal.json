@@ -36,6 +36,13 @@
       "when": 1786969861891,
       "tag": "0004_narrow_king_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1786971129935,
+      "tag": "0005_milky_maggott",
+      "breakpoints": true
     }
   ]
 }

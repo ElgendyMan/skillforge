@@ -177,10 +177,24 @@ export const codeReviewComments = mysqlTable("codeReviewComments", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+export const comparisonFilterTemplates = mysqlTable("comparisonFilterTemplates", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: int("companyId").notNull(),
+  createdByUserId: int("createdByUserId").notNull(),
+  name: varchar("name", { length: 120 }).notNull(),
+  jobTitle: varchar("jobTitle", { length: 180 }),
+  questionType: mysqlEnum("questionType", ["multiple_choice", "essay", "code", "vulnerability", "file_upload"]),
+  submittedFrom: timestamp("submittedFrom"),
+  submittedTo: timestamp("submittedTo"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 export const notifications = mysqlTable("notifications", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
-  type: mysqlEnum("type", ["attempt_submitted", "status_changed", "review_ready"]).notNull(),
+  type: mysqlEnum("type", ["attempt_submitted", "status_changed", "review_ready", "feedback_published"]).notNull(),
+  notificationKey: varchar("notificationKey", { length: 220 }).unique(),
   title: varchar("title", { length: 220 }).notNull(),
   content: text("content").notNull(),
   readAt: timestamp("readAt"),

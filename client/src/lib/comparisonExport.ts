@@ -10,30 +10,45 @@ export type ComparisonExportRow = {
   submittedAt: Date | null;
 };
 
+export const comparisonCsvColumns = [
+  { id: "candidateName", label: "المرشح" },
+  { id: "jobTitle", label: "المسمى الوظيفي" },
+  { id: "testTitle", label: "الاختبار" },
+  { id: "score", label: "النتيجة" },
+  { id: "priority", label: "الأولوية" },
+  { id: "status", label: "الحالة" },
+  { id: "integrityFlags", label: "تنبيهات النزاهة" },
+  { id: "skills", label: "المهارات" },
+  { id: "submittedAt", label: "تاريخ التقديم" },
+] as const;
+
+export type ComparisonCsvColumn = (typeof comparisonCsvColumns)[number]["id"];
+
 export function escapeCsvValue(value: string | number | null | undefined) {
   const text = value === null || value === undefined ? "" : String(value);
   return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-export function buildComparisonCsv(rows: ComparisonExportRow[]) {
-  const headers = ["المرشح", "المسمى الوظيفي", "الاختبار", "النتيجة", "الأولوية", "الحالة", "تنبيهات النزاهة", "المهارات", "تاريخ التقديم"];
-  const values = rows.map(row => [row.candidateName, row.jobTitle, row.testTitle, row.score ?? "", row.priority, row.status, row.integrityFlags, row.skills.join(" | "), row.submittedAt ? row.submittedAt.toISOString() : ""].map(escapeCsvValue).join(","));
-  return `\uFEFF${[headers.map(escapeCsvValue).join(","), ...values].join("\n")}`;
+function columnValue(row: ComparisonExportRow, column: ComparisonCsvColumn) {
+  if (column === "skills") return row.skills.join(" | ");
+  if (column === "submittedAt") return row.submittedAt ? row.submittedAt.toISOString() : "";
+  return row[column] ?? "";
 }
 
-export function downloadComparisonCsv(rows: ComparisonExportRow[]) {
-  const blob = new Blob([buildComparisonCsv(rows)], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `skillforge-candidate-comparison-${new Date().toISOString().slice(0, 10)}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+export function buildComparisonCsv(rows: ComparisonExportRow[], columns: ComparisonCsvColumn[] = comparisonCsvColumns.map(column => column.id)) {
+  const selected = comparisonCsvColumns.filter(column => columns.includes(column.id));
+  if (!selected.length) throw new Error("Select at least one CSV column.");
+  const values = rows.map(row => selected.map(column => escapeCsvValue(columnValue(row, column.id))).join(","));
+  return `\uFEFF${[selected.map(column => escapeCsvValue(column.label)).join(","), ...values].join("\n")}`;
 }
 
-function htmlEscape(value: string | number | null | undefined) {
-  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+export function downloadComparisonCsv(rows: ComparisonExportRow[], columns?: ComparisonCsvColumn[]) {
+  const blob = new Blob([buildComparisonCsv(rows, columns)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob); const link = document.createElement("a");
+  link.href = url; link.download = `skillforge-candidate-comparison-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(url);
 }
+
+function htmlEscape(value: string | number | null | undefined) { return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 
 export function buildComparisonPrintDocument(rows: ComparisonExportRow[], filters: { jobTitle?: string; questionType?: string; submittedFrom?: string; submittedTo?: string }) {
   const filterText = [filters.jobTitle && `المسمى: ${filters.jobTitle}`, filters.questionType && `نوع السؤال: ${filters.questionType}`, filters.submittedFrom && `من: ${filters.submittedFrom}`, filters.submittedTo && `إلى: ${filters.submittedTo}`].filter(Boolean).join(" — ") || "بدون فلاتر";
@@ -42,12 +57,6 @@ export function buildComparisonPrintDocument(rows: ComparisonExportRow[], filter
 }
 
 export function openComparisonPrintPreview(rows: ComparisonExportRow[], filters: { jobTitle?: string; questionType?: string; submittedFrom?: string; submittedTo?: string }) {
-  const preview = window.open("", "_blank");
-  if (!preview) return false;
-  preview.opener = null;
-  preview.document.write(buildComparisonPrintDocument(rows, filters));
-  preview.document.close();
-  preview.focus();
-  window.setTimeout(() => preview.print(), 250);
-  return true;
+  const preview = window.open("", "_blank"); if (!preview) return false; preview.opener = null;
+  preview.document.write(buildComparisonPrintDocument(rows, filters)); preview.document.close(); preview.focus(); window.setTimeout(() => preview.print(), 250); return true;
 }
