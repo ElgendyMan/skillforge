@@ -82,4 +82,4 @@
 - [x] Fix /candidate role gating so supervisor accounts are redirected to the supervisor workspace before candidate queries run.
 - [x] Add regression coverage for role-based landing routes and disabled candidate queries for non-candidates.
 - [x] Run typecheck, tests, visual verification, and save a checkpoint for the role-routing fix.
-- [ ] Save the verified supervisor role-routing fix as a new checkpoint.
+- [x] Save the verified supervisor role-routing fix as a new checkpoint.
