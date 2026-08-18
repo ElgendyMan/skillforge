@@ -89,3 +89,16 @@
 
 - [x] Add real browser E2E coverage that exercises mismatched role URLs, explanatory UI, and workspace button navigation.
 - [x] Save a checkpoint after the real browser E2E test passes.
+
+- [x] Add a development-only mock-data mode with clearly labeled candidate, company, and supervisor fixtures; never enable it for production.
+- [x] Add a repeatable large mock-data generator covering tests, questions, attempts, reviews, notifications, recordings, comparisons, notes, and tags with role ownership boundaries.
+- [x] Add development authentication fixtures for candidate, company, and supervisor sessions without bypassing production Manus OAuth.
+- [x] Add server regression tests proving mock-data ownership isolation and role-specific access for all three roles.
+- [x] Add browser E2E coverage for each role using mock sessions, including route access, workspace navigation, key buttons, and auth/logout behavior.
+- [x] Run visual verification for all role workspaces at desktop and mobile sizes and resolve interaction or layout defects.
+- [x] Run typecheck, Vitest, E2E, production build, and save a new checkpoint with all work complete.
+
+- [x] Add seeded-fixture authorization tests that exercise candidate, company, and supervisor procedures and deny cross-role or cross-owner access.
+- [x] Explicitly review all three seeded role workspaces at desktop and mobile sizes, including the company dashboard after data settles, and record the result.
+
+- [x] Open and inspect the final settled screenshots for candidate, company, and supervisor on both desktop and mobile, then record a complete six-variant visual review.
