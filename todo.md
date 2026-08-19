@@ -102,3 +102,19 @@
 - [x] Explicitly review all three seeded role workspaces at desktop and mobile sizes, including the company dashboard after data settles, and record the result.
 
 - [x] Open and inspect the final settled screenshots for candidate, company, and supervisor on both desktop and mobile, then record a complete six-variant visual review.
+
+- [x] Audit all current routes, pages, controls, dialogs, dropdowns, tabs, forms, filters, states, and user workflows; create the element-to-function UI map.
+- [x] Refactor role navigation progressively without deleting routes, controls, labels, handlers, or changing behavior.
+- [x] Reorganize page-level primary, secondary, and advanced actions while preserving all existing state and workflows.
+- [x] Verify responsive desktop/tablet/mobile layouts and accessibility for the reorganized navigation and controls.
+- [x] Add UI regression and Playwright coverage proving every existing option remains reachable and functional after reorganization.
+- [x] Run final typecheck, Vitest, Playwright, production build, visual review, and save a new checkpoint.
+
+- [x] Complete the explicit per-route/per-page/per-control UI inventory and map every existing option, state, and workflow.
+- [x] Expand browser regression coverage for all grouped secondary links and key page-level controls: candidate profile/notifications/files, company tests/profile/notifications/files, supervisor paths, filters, dialogs, and exports.
+
+- [x] Group the company test-builder question-type actions under a labeled add-question menu while preserving every type and handler.
+- [x] Complete the public-page and remaining-component inventory in ui-ux-element-map.md, including Home, NotFound, ComponentShowcase, and CompanyComparisonExperience.
+- [x] Run tablet screenshots and explicit keyboard/focus/ARIA checks for the reorganized navigation and collapsible filter controls.
+
+- [x] Open and document candidate, company, and supervisor tablet screenshots after the refactor, with keyboard/focus/ARIA checks active at tablet size.

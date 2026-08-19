@@ -47,6 +47,28 @@ test.describe("seeded role workspaces", () => {
         await expect(page).toHaveURL(/\/supervisor\/attempts$/);
       }
 
+      if (fixture.role === "candidate") {
+        const candidateSecondary = [["التنبيهات", "/candidate/notifications"], ["ملفاتي المؤمنة", "/candidate/files"], ["ملفي المهني", "/candidate/profile"]] as const;
+        for (const [label, path] of candidateSecondary) {
+          await page.goto("/candidate");
+          await page.getByRole("button", { name: "الحساب والإعدادات" }).click();
+          await page.getByRole("button", { name: label }).click();
+          await expect(page).toHaveURL(new RegExp(`${path}$`));
+          await expect(page.locator("body")).not.toContainText("Error 1:");
+        }
+      }
+
+      if (fixture.role === "company") {
+        const companySecondary = [["اختباراتنا", "/company/tests"], ["ملف الشركة", "/company/profile"], ["التنبيهات", "/company/notifications"], ["ملفات المراجعة", "/company/files"]] as const;
+        for (const [label, path] of companySecondary) {
+          await page.goto("/company");
+          await page.getByRole("button", { name: "إدارة الشركة" }).click();
+          await page.getByRole("button", { name: label }).click();
+          await expect(page).toHaveURL(new RegExp(`${path}$`));
+          await expect(page.locator("body")).not.toContainText("Error 1:");
+        }
+      }
+
       await page.goto(fixture.home);
       await page.getByText(/mock\./).first().click();
       await expect(page.getByRole("menuitem", { name: "تسجيل الخروج" })).toBeVisible();

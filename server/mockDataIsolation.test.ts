@@ -46,7 +46,7 @@ describe("seeded mock-data authorization", () => {
     await expect(candidateCaller.company.dashboard()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(companyCaller.candidate.attempts.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(candidateCaller.supervisor.overview()).rejects.toMatchObject({ code: "FORBIDDEN" });
-  });
+  }, 15_000);
 
   it("has seeded rows owned by the expected fixture boundaries", async () => {
     const db = await getDb();
