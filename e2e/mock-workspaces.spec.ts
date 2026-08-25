@@ -32,7 +32,32 @@ test.describe("seeded role workspaces", () => {
         const startButton = page.getByRole("button", { name: /^ابدأ$/ }).first();
         await expect(startButton).toBeVisible();
         await startButton.click();
+        await expect(page.getByRole("heading", { name: "قبل ما تبدأ الاختبار" })).toBeVisible();
+        await expect(page.getByText("القرار النهائي بشري وليس قرارًا آليًا")).toBeVisible();
+        await expect(page.getByText(/بعد قرار نهائي بالقبول أو الرفض تقدر تفتح اعتراضًا/)).toBeVisible();
+        await expect(page.getByText("عندك تسهيل بدون كاميرا معتمد؛ مش هنطلب موافقة كاميرا لهذه المحاولة.")).toBeVisible();
+        await expect(page.getByText(/الإشارات سياق للمراجع وليست ضمانًا ضد الغش/)).toBeVisible();
+        await page.getByRole("button", { name: "موافق وابدأ" }).click();
         await expect(page).toHaveURL(/\/attempt\/\d+$/);
+        await expect(page.getByText(/تشغيل الكود خدمة تعتمد على مزود التنفيذ/)).toBeVisible();
+        await expect(page.getByRole("button", { name: "المراقبة" })).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "مشكلة تقنية" })).toBeVisible();
+        await page.getByRole("button", { name: "مشكلة تقنية" }).click();
+        await expect(page.getByRole("heading", { name: "إبلاغ عن مشكلة تقنية" })).toBeVisible();
+        await page.getByPlaceholder("مثال: الاتصال انقطع أثناء حفظ الإجابة...").fill("انقطع الاتصال أثناء حفظ الإجابة وأحتاج إيقاف المحاولة للمراجعة.");
+        await page.getByRole("button", { name: "إرسال البلاغ" }).click();
+        await expect(page.getByText("اتسجلت المشكلة التقنية؛ المحاولة اتوقفت مؤقتًا للمراجعة.")).toBeVisible();
+        await page.goto("/candidate/status");
+        await page.getByRole("button", { name: "فتح طلب مراجعة" }).click();
+        await expect(page.getByRole("heading", { name: "فتح طلب مراجعة" })).toBeVisible();
+        await page.getByRole("combobox").click();
+        await page.getByRole("option").first().click();
+        await page.getByPlaceholder("اكتب سبب طلب المراجعة...").fill("أطلب مراجعة بشرية للقرار بسبب معلومات إضافية مرتبطة بإجابتي.");
+        await page.getByRole("button", { name: "إرسال الطلب" }).click();
+        await expect(page.getByText("تم إرسال طلب المراجعة.")).toBeVisible();
+        await page.getByRole("button", { name: "طلب تسهيل" }).click();
+        await expect(page.getByRole("heading", { name: "طلب تسهيل" })).toBeVisible();
+        await page.getByRole("button", { name: "إلغاء" }).last().click();
       }
 
       if (fixture.role === "company") {

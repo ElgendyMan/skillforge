@@ -118,3 +118,32 @@
 - [x] Run tablet screenshots and explicit keyboard/focus/ARIA checks for the reorganized navigation and collapsible filter controls.
 
 - [x] Open and document candidate, company, and supervisor tablet screenshots after the refactor, with keyboard/focus/ARIA checks active at tablet size.
+
+- [x] Implement and verify the new requirements contained in the latest attached specification without breaking existing routes, role isolation, or workflows.
+
+- [x] Produce a factual feature-gap inventory against the attached fairness, privacy, RBAC, audit, storage, runner, proctoring, notification, export, and documentation requirements.
+- [x] Verify server-side attempt/review/hiring-decision state boundaries and ensure no score, flag, recording event, or AI signal can create an automatic hiring decision.
+- [x] Verify published test/question immutability and version references; add safe versioning or document the remaining gap without silently changing active attempts.
+- [x] Add candidate-facing assessment explanation, proctoring consent/alternative flow, technical-issue path, accommodation policy, retention summary, and review/appeal guidance where supported.
+- [x] Verify code-runner and proctoring limitations are honestly surfaced as sandbox/provider-dependent; do not claim production isolation without evidence.
+- [x] Harden evidence/storage validation, signed access, retention boundaries, export privacy, notification previews, and audit coverage where applicable.
+- [x] Update the required fairness, privacy, security, RBAC, retention, appeals, and production-readiness documentation with explicit mock/sandbox/production boundaries.
+- [x] Add regression coverage for the new boundaries and run full typecheck, unit/integration, Playwright, security, build, and visual verification before checkpoint.
+
+- [x] Implement immutable assessment snapshots/versioned reads so active and past attempts load frozen sections/questions for their recorded test version.
+- [x] Add a dedicated pre-start candidate disclosure step covering scoring, human review, proctoring limits, retention, alternatives, accommodations, and appeals.
+- [x] Wire approved no-camera/alternative accommodations into test-start and proctoring behavior without bypassing consent or security checks.
+- [x] Add regression and Playwright coverage for technical-issue pause, appeal creation, accommodation visibility, and immutable attempt content after later test changes.
+
+- [x] Surface provider-dependent code-runner and proctoring limitations in the pre-start disclosure and runner UI, not only in documentation.
+- [x] Audit runner/proctoring copy across the application and remove any claims of guaranteed isolation or infallible anti-cheating.
+
+- [x] Add an integration test that starts a real attempt, changes source test/question content, and verifies candidate/company reads still use frozen snapshot content.
+- [x] Mention appeal availability and its limits explicitly in the pre-start disclosure and assert the text in Playwright.
+- [x] Apply and surface approved no_camera accommodation in the pre-start/start response, with regression coverage proving the alternative is visible before starting and consent is not bypassed.
+- [x] Exercise technical-issue pause submission and appeal creation in regression/browser tests, not only dialog visibility.
+
+- [x] Add an integration test that changes live test/question content and verifies candidate/company reads still use frozen snapshot content.
+- [x] Surface provider-dependent code-runner/proctoring limits and explicit appeal availability/limits in the candidate pre-start disclosure and runner UI.
+
+- [x] Add pending/quarantine file security workflow with audit logging and denied signed access until supervisor review.

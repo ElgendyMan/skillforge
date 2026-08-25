@@ -66,6 +66,9 @@ export const tests = mysqlTable("tests", {
   status: mysqlEnum("status", ["draft", "published", "archived"]).default("draft").notNull(),
   proctoringMode: mysqlEnum("proctoringMode", ["none", "optional", "required"]).default("optional").notNull(),
   attemptsAllowed: int("attemptsAllowed").default(1).notNull(),
+  version: int("version").default(1).notNull(),
+  immutable: boolean("immutable").default(false).notNull(),
+  publishedAt: timestamp("publishedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -91,23 +94,54 @@ export const testQuestions = mysqlTable("testQuestions", {
   starterCode: text("starterCode"),
   supportedLanguages: json("supportedLanguages").$type<string[]>(),
   sortOrder: int("sortOrder").notNull(),
+  version: int("version").default(1).notNull(),
+  isRetired: boolean("isRetired").default(false).notNull(),
 });
 
 export const testAttempts = mysqlTable("testAttempts", {
   id: int("id").autoincrement().primaryKey(),
   testId: int("testId").notNull(),
   candidateId: int("candidateId").notNull(),
-  state: mysqlEnum("state", ["in_progress", "submitted"]).default("in_progress").notNull(),
+  state: mysqlEnum("state", ["in_progress", "paused_for_technical_issue", "submitted", "expired", "under_review"]).default("in_progress").notNull(),
   applicationStatus: mysqlEnum("applicationStatus", ["accepted", "rejected", "under review"]).default("under review").notNull(),
   startedAt: timestamp("startedAt").defaultNow().notNull(),
   submittedAt: timestamp("submittedAt"),
   expiresAt: timestamp("expiresAt").notNull(),
+  graceEndsAt: timestamp("graceEndsAt"),
+  technicalIssueReason: text("technicalIssueReason"),
+  testVersion: int("testVersion").default(1).notNull(),
   autoScore: int("autoScore"),
   reviewerScore: int("reviewerScore"),
   priorityScore: int("priorityScore").default(0).notNull(),
   integrityFlags: int("integrityFlags").default(0).notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => [unique("attempt_candidate_test_unique").on(table.testId, table.candidateId)]);
+
+export const attemptSectionSnapshots = mysqlTable("attemptSectionSnapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  attemptId: int("attemptId").notNull(),
+  originalSectionId: int("originalSectionId").notNull(),
+  title: varchar("title", { length: 180 }).notNull(),
+  instructions: text("instructions"),
+  sortOrder: int("sortOrder").notNull(),
+});
+
+export const attemptQuestionSnapshots = mysqlTable("attemptQuestionSnapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  attemptId: int("attemptId").notNull(),
+  originalQuestionId: int("originalQuestionId").notNull(),
+  sectionSnapshotId: int("sectionSnapshotId").notNull(),
+  type: mysqlEnum("type", ["multiple_choice", "essay", "code", "vulnerability", "file_upload"]).notNull(),
+  prompt: text("prompt").notNull(),
+  guidance: text("guidance"),
+  points: int("points").notNull(),
+  options: json("options").$type<Array<{ id: string; label: string }>>(),
+  correctAnswers: json("correctAnswers").$type<string[]>(),
+  evaluationGuide: text("evaluationGuide"),
+  starterCode: text("starterCode"),
+  supportedLanguages: json("supportedLanguages").$type<string[]>(),
+  sortOrder: int("sortOrder").notNull(),
+});
 
 export const attemptAnswers = mysqlTable("attemptAnswers", {
   id: int("id").autoincrement().primaryKey(),
@@ -153,6 +187,9 @@ export const fileAssets = mysqlTable("fileAssets", {
   originalName: varchar("originalName", { length: 300 }).notNull(),
   mimeType: varchar("mimeType", { length: 160 }).notNull(),
   byteSize: int("byteSize").notNull(),
+  sha256: varchar("sha256", { length: 64 }),
+  securityStatus: mysqlEnum("securityStatus", ["pending", "available", "quarantined", "rejected"]).default("pending").notNull(),
+  expiresAt: timestamp("expiresAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -162,6 +199,9 @@ export const reviews = mysqlTable("reviews", {
   reviewerUserId: int("reviewerUserId").notNull(),
   score: int("score").notNull(),
   decision: mysqlEnum("decision", ["accepted", "rejected", "under review"]).notNull(),
+  reviewStatus: mysqlEnum("reviewStatus", ["pending", "in_review", "needs_second_review", "completed"]).default("completed").notNull(),
+  rationale: text("rationale"),
+  evidenceReference: text("evidenceReference"),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -211,6 +251,28 @@ export const notifications = mysqlTable("notifications", {
   readAt: timestamp("readAt"),
   emailStatus: mysqlEnum("emailStatus", ["queued", "not_configured", "sent", "failed"]).default("not_configured").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const appeals = mysqlTable("appeals", {
+  id: int("id").autoincrement().primaryKey(),
+  attemptId: int("attemptId").notNull(),
+  candidateId: int("candidateId").notNull(),
+  reason: text("reason").notNull(),
+  status: mysqlEnum("status", ["open", "in_review", "resolved", "withdrawn"]).default("open").notNull(),
+  resolution: text("resolution"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const accommodations = mysqlTable("accommodations", {
+  id: int("id").autoincrement().primaryKey(),
+  candidateId: int("candidateId").notNull(),
+  attemptId: int("attemptId"),
+  type: mysqlEnum("type", ["extra_time", "no_camera", "screen_reader", "keyboard_only", "text_scaling", "high_contrast", "language_support", "other"]).notNull(),
+  details: text("details"),
+  status: mysqlEnum("status", ["requested", "approved", "denied", "fulfilled"]).default("requested").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export const auditLogs = mysqlTable("auditLogs", {

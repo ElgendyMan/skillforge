@@ -35,6 +35,8 @@ async function clean() {
   const mockCompanyIds = `(SELECT id FROM companies WHERE slug LIKE '${prefix}%')`;
   await exec(`DELETE ce FROM proctoringEvents ce JOIN proctoringSessions ps ON ce.sessionId = ps.id JOIN testAttempts ta ON ps.attemptId = ta.id WHERE ta.candidateId IN ${mockUserIds}`);
   await exec(`DELETE aa FROM attemptAnswers aa JOIN testAttempts ta ON aa.attemptId = ta.id WHERE ta.candidateId IN ${mockUserIds}`);
+  await exec(`DELETE ap FROM appeals ap WHERE ap.candidateId IN ${mockUserIds}`);
+  await exec(`DELETE ac FROM accommodations ac WHERE ac.candidateId IN ${mockUserIds}`);
   await exec(`DELETE c FROM codeReviewComments c JOIN testAttempts ta ON c.attemptId = ta.id WHERE ta.candidateId IN ${mockUserIds}`);
   await exec(`DELETE r FROM reviews r JOIN testAttempts ta ON r.attemptId = ta.id WHERE ta.candidateId IN ${mockUserIds}`);
   await exec(`DELETE ps FROM proctoringSessions ps JOIN testAttempts ta ON ps.attemptId = ta.id WHERE ta.candidateId IN ${mockUserIds}`);
@@ -66,6 +68,8 @@ async function seedUsers() {
     roleUsers[`company${i}`] = userId;
   }
   await insert("candidateProfiles", { userId: roleUsers.candidate, headline: "مهندس أمن سيبراني تجريبي", bio: "ملف مرشح تجريبي غني للاختبار البصري والتفاعلي.", skills: JSON.stringify(["Web Security", "Burp Suite", "OWASP", "Linux"]), experience: JSON.stringify([{ title: "Security Engineer", company: "Mock Labs", duration: "2 years" }, { title: "Penetration Tester", company: "DemoSec", duration: "1 year" }]), portfolioLinks: JSON.stringify([{ label: "GitHub", url: "https://github.com/example" }, { label: "Portfolio", url: "https://example.com" }]), updatedAt: ago(1) });
+  await insert("accommodations", { candidateId: roleUsers.candidate, attemptId: null, type: "no_camera", details: "تسهيل تجريبي معتمد قبل بدء المحاولة.", status: "approved", createdAt: ago(20), updatedAt: ago(2) });
+  await insert("accommodations", { candidateId: roleUsers.candidate, attemptId: null, type: "extra_time", details: "طلب تجريبي قيد المراجعة.", status: "requested", createdAt: ago(10), updatedAt: ago(1) });
   const [rows] = await pool.query(`SELECT id, openId FROM users WHERE openId LIKE '${prefix}candidate-%' ORDER BY id`);
   for (const [index, row] of rows.entries()) {
     await insert("candidateProfiles", { userId: row.id, headline: `متخصص ${index % 2 ? "تطوير" : "أمن"} تجريبي`, bio: "بيانات تجريبية للاختبار فقط.", skills: JSON.stringify(["JavaScript", "Linux", "Security", "Automation"]), experience: JSON.stringify([{ title: "Engineer", company: "Mock Studio", duration: `${1 + (index % 5)} years` }]), portfolioLinks: JSON.stringify([{ label: "Portfolio", url: "https://example.com" }]), updatedAt: ago(index) });
@@ -84,6 +88,7 @@ async function seedCompanies() {
 
 const testIds = [];
 const questionIdsByTest = new Map();
+const snapshotContentByTest = new Map();
 async function seedTests() {
   const types = ["multiple_choice", "essay", "code", "vulnerability", "file_upload"];
   for (let companyIndex = 0; companyIndex < companyIds.length; companyIndex++) {
@@ -91,15 +96,22 @@ async function seedTests() {
       const testId = await insert("tests", { companyId: companyIds[companyIndex], title: `${["Web Pentest", "Red Team", "Cloud Defense"][companyIndex]} Challenge ${testIndex}`, jobTitle: ["Junior Pentester", "Web Security Engineer", "Application Security Lead"][testIndex % 3], summary: "اختبار تجريبي شامل يقيس التفكير الأمني والبرمجة والتحليل العملي.", field: ["Web Security", "Red Team", "Cloud Security"][companyIndex], level: ["junior", "mid", "senior"][testIndex % 3], durationMinutes: 45 + (testIndex % 4) * 15, status: testIndex === 10 ? "draft" : "published", proctoringMode: testIndex % 3 === 0 ? "required" : "optional", attemptsAllowed: 1, createdAt: ago(3000 - testIndex), updatedAt: ago(testIndex) });
       testIds.push({ id: testId, companyId: companyIds[companyIndex], status: testIndex === 10 ? "draft" : "published" });
       const questionIds = [];
+      const snapshotSections = [];
+      const snapshotQuestions = [];
       for (let sectionIndex = 1; sectionIndex <= 3; sectionIndex++) {
-        const sectionId = await insert("testSections", { testId, title: ["Fundamentals", "Practical Analysis", "Final Review"][sectionIndex - 1], instructions: "اقرأ السؤال بالكامل وسجل إجابة واضحة وقابلة للمراجعة.", sortOrder: sectionIndex });
+        const sectionTitle = ["Fundamentals", "Practical Analysis", "Final Review"][sectionIndex - 1];
+        const sectionInstructions = "اقرأ السؤال بالكامل وسجل إجابة واضحة وقابلة للمراجعة.";
+        const sectionId = await insert("testSections", { testId, title: sectionTitle, instructions: sectionInstructions, sortOrder: sectionIndex });
+        snapshotSections.push({ originalSectionId: sectionId, title: sectionTitle, instructions: sectionInstructions, sortOrder: sectionIndex });
         for (let questionIndex = 0; questionIndex < 5; questionIndex++) {
           const type = types[(sectionIndex + questionIndex + companyIndex) % types.length];
           const row = { sectionId, type, prompt: `سؤال ${type} تجريبي رقم ${sectionIndex}-${questionIndex + 1}: حلل السيناريو ووضح منهجيتك.`, guidance: "استخدم منهجية منظمة واذكر الافتراضات.", points: 10 + questionIndex * 2, options: type === "multiple_choice" ? JSON.stringify([{ id: "a", label: "الخيار الأول" }, { id: "b", label: "الخيار الثاني" }, { id: "c", label: "الخيار الثالث" }]) : null, correctAnswers: type === "multiple_choice" ? JSON.stringify([questionIndex % 2 ? "b" : "a"]) : null, evaluationGuide: "الدقة، وضوح التفكير، وربط الإجابة بالسياق الأمني.", starterCode: type === "code" ? "function solve(input) {\n  // اكتب الحل هنا\n  return input;\n}" : null, supportedLanguages: type === "code" ? JSON.stringify(["javascript", "python", "typescript"]) : null, sortOrder: questionIndex + 1 };
+          snapshotQuestions.push({ ...row, sectionIndex: sectionIndex - 1 });
           questionIds.push(await insert("testQuestions", row));
         }
       }
       questionIdsByTest.set(testId, questionIds);
+      snapshotContentByTest.set(testId, { sections: snapshotSections, questions: snapshotQuestions });
     }
   }
 }
@@ -114,6 +126,10 @@ async function seedAttemptsAndReviews() {
       const submitted = (candidate.id + testIndex) % 4 !== 0;
       const attemptId = await insert("testAttempts", { testId: test.id, candidateId: candidate.id, state: submitted ? "submitted" : "in_progress", applicationStatus: submitted ? ["accepted", "rejected", "under review"][attemptCounter % 3] : "under review", startedAt: ago(1200 - attemptCounter), submittedAt: submitted ? ago(1000 - attemptCounter) : null, expiresAt: submitted ? ago(900 - attemptCounter) : future(90), autoScore: submitted ? 55 + (attemptCounter % 41) : null, reviewerScore: submitted && attemptCounter % 3 !== 2 ? 60 + (attemptCounter % 36) : null, priorityScore: submitted ? 60 + (attemptCounter % 36) : 0, integrityFlags: submitted ? attemptCounter % 3 : 0, updatedAt: ago(attemptCounter % 80) });
       const questionIds = questionIdsByTest.get(test.id) ?? [];
+      const snapshotContent = snapshotContentByTest.get(test.id);
+      const snapshotSectionIds = [];
+      for (const section of snapshotContent?.sections ?? []) snapshotSectionIds.push(await insert("attemptSectionSnapshots", { attemptId, originalSectionId: section.originalSectionId, title: section.title, instructions: section.instructions, sortOrder: section.sortOrder }));
+      if (snapshotContent?.questions?.length) await insertMany("attemptQuestionSnapshots", snapshotContent.questions.map(question => ({ attemptId, originalQuestionId: questionIds[question.sectionIndex * 5 + (question.sortOrder - 1)], sectionSnapshotId: snapshotSectionIds[question.sectionIndex], type: question.type, prompt: question.prompt, guidance: question.guidance, points: question.points, options: question.options, correctAnswers: question.correctAnswers, evaluationGuide: question.evaluationGuide, starterCode: question.starterCode, supportedLanguages: question.supportedLanguages, sortOrder: question.sortOrder })));
       const answerRows = questionIds.map((questionId, q) => ({ attemptId, questionId, textAnswer: q % 5 === 1 ? "تحليل تجريبي مفصل يوضح خطوات التحقق." : null, selectedOptionIds: q % 5 === 0 ? JSON.stringify([q % 2 ? "b" : "a"]) : null, codeAnswer: q % 5 === 2 ? "function solve(input) { return input.trim(); }" : null, language: q % 5 === 2 ? "javascript" : null, fileAssetId: null, savedAt: ago(attemptCounter % 120) }));
       await insertMany("attemptAnswers", answerRows);
       if (submitted && attemptCounter % 2 === 0) {

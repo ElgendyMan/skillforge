@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import type { TrpcContext } from "../_core/context";
-import { canAccessAttemptAsset, canTransitionApplicationStatus, computePriority, isEmailDeliveryConfigured, isIntegrityFlagEvent, shouldPublishFeedbackNotification } from "./hiring";
+import { canAccessAttemptAsset, canReportTechnicalIssue, canSaveAttemptState, canTransitionApplicationStatus, computePriority, hasValidFileSignature, isAttemptExpired, isEmailDeliveryConfigured, isIntegrityFlagEvent, preferAttemptSnapshot, shouldPublishFeedbackNotification } from "./hiring";
 
 const originalApiKey = process.env.RESEND_API_KEY;
 const originalFrom = process.env.RESEND_FROM_EMAIL;
@@ -25,11 +25,43 @@ describe("email delivery configuration", () => {
   });
 });
 
-describe("priority recommendation", () => {
-  it("rewards strong scores without integrity flags and applies a bounded deduction otherwise", () => {
-    expect(computePriority(80, null, 0)).toBe(88);
-    expect(computePriority(90, 95, 2)).toBe(79);
+describe("file signature validation", () => {
+  it("accepts supported signatures and rejects content/MIME mismatches", () => {
+    expect(hasValidFileSignature(Buffer.from("%PDF-1.7"), "application/pdf")).toBe(true);
+    expect(hasValidFileSignature(Buffer.from("not a pdf"), "application/pdf")).toBe(false);
+    expect(hasValidFileSignature(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), "image/png")).toBe(true);
+    expect(hasValidFileSignature(Buffer.from([0xff, 0xd8, 0xff, 0xe0]), "image/jpeg")).toBe(true);
+    expect(hasValidFileSignature(Buffer.from("RIFFxxxxWEBP"), "image/webp")).toBe(true);
+    expect(hasValidFileSignature(Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x01]), "video/webm")).toBe(true);
+    expect(hasValidFileSignature(Buffer.from("xxxxftypisom"), "video/mp4")).toBe(true);
+    expect(hasValidFileSignature(Buffer.from("text evidence"), "text/plain")).toBe(true);
+    expect(hasValidFileSignature(Buffer.from([0x00, 0x01]), "text/plain")).toBe(false);
+    expect(hasValidFileSignature(Buffer.from("text evidence"), "image/png")).toBe(false);
+  });
+});
+
+describe("human-review triage", () => {
+  it("uses the score as a bounded triage value and never applies a proctoring penalty", () => {
+    expect(computePriority(80, null, 0)).toBe(80);
+    expect(computePriority(90, 95, 2)).toBe(95);
     expect(computePriority(null, null, 20)).toBe(0);
+  });
+
+  it("keeps frozen attempt content when live test content changes later", () => {
+    const frozen = [{ originalQuestionId: 12, prompt: "النص وقت بدء المحاولة" }];
+    const live = [{ id: 12, prompt: "نص جديد بعد النشر" }];
+    expect(preferAttemptSnapshot(frozen, live)).toEqual(frozen);
+    expect(preferAttemptSnapshot([], live)).toEqual(live);
+  });
+
+  it("keeps technical signals contextual and exposes explicit attempt state rules", () => {
+    expect(canSaveAttemptState("in_progress")).toBe(true);
+    expect(canSaveAttemptState("paused_for_technical_issue")).toBe(true);
+    expect(canSaveAttemptState("submitted")).toBe(false);
+    expect(canReportTechnicalIssue("submitted")).toBe(false);
+    expect(canReportTechnicalIssue("in_progress")).toBe(true);
+    expect(isAttemptExpired(new Date(1_000), 1_001)).toBe(true);
+    expect(isAttemptExpired(new Date(1_000), 999)).toBe(false);
   });
 });
 

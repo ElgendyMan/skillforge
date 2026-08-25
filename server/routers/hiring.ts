@@ -1,7 +1,11 @@
+import { createHash } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, avg, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, avg, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
+  accommodations,
+  appeals,
+  auditLogs,
   attemptAnswers,
   candidateProfiles,
   codeReviewComments,
@@ -13,6 +17,8 @@ import {
   proctoringSessions,
   reviews,
   testAttempts,
+  attemptQuestionSnapshots,
+  attemptSectionSnapshots,
   testQuestions,
   testSections,
   tests,
@@ -26,12 +32,27 @@ const questionType = z.enum(["multiple_choice", "essay", "code", "vulnerability"
 export const applicationStatus = z.enum(["accepted", "rejected", "under review"]);
 const proctoringEvent = z.enum(["focus_lost", "focus_returned", "screen_stopped", "camera_stopped", "connection_lost", "connection_restored"]);
 
+export function hasValidFileSignature(data: Buffer, mimeType: string): boolean {
+  if (mimeType === "text/plain") return data.length > 0 && !data.includes(0);
+  if (mimeType === "application/pdf") return data.subarray(0, 5).toString("ascii") === "%PDF-";
+  if (mimeType === "image/png") return data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  if (mimeType === "image/jpeg") return data.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]));
+  if (mimeType === "image/webp") return data.subarray(0, 4).toString("ascii") === "RIFF" && data.subarray(8, 12).toString("ascii") === "WEBP";
+  if (mimeType === "video/webm") return data.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+  if (mimeType === "video/mp4") return data.subarray(4, 8).toString("ascii") === "ftyp";
+  return false;
+}
+
 function forbidden(message = "You are not permitted to access this resource."): never {
   throw new TRPCError({ code: "FORBIDDEN", message });
 }
 
 function requireCandidate(role: string) {
   if (role !== "candidate") forbidden("Candidate access is required.");
+}
+
+function requireSupervisor(role: string) {
+  if (role !== "supervisor") forbidden("Supervisor access is required.");
 }
 
 function requireCompany(role: string) {
@@ -87,9 +108,26 @@ async function ownedCompanyAttempt(userId: number, attemptId: number) {
   return rows[0];
 }
 
-export function computePriority(autoScore: number | null, reviewerScore: number | null, integrityFlags: number) {
+export function computePriority(autoScore: number | null, reviewerScore: number | null, _integrityFlags: number) {
+  // Triage value is score-only; proctoring signals remain contextual and never penalize or decide hiring.
   const base = reviewerScore ?? autoScore ?? 0;
-  return Math.max(0, Math.min(100, Math.round(base - integrityFlags * 8 + (integrityFlags === 0 ? 8 : 0))));
+  return Math.max(0, Math.min(100, Math.round(base)));
+}
+
+export function preferAttemptSnapshot<T>(snapshots: T[], liveRows: T[]) {
+  return snapshots.length ? snapshots : liveRows;
+}
+
+export function canSaveAttemptState(state: string) {
+  return state === "in_progress" || state === "paused_for_technical_issue";
+}
+
+export function canReportTechnicalIssue(state: string) {
+  return state === "in_progress" || state === "paused_for_technical_issue";
+}
+
+export function isAttemptExpired(expiresAt: Date, now = Date.now()) {
+  return expiresAt.getTime() < now;
 }
 
 export function isIntegrityFlagEvent(eventType: z.infer<typeof proctoringEvent>) {
@@ -169,23 +207,38 @@ export const candidateRouter = router({
       const db = await dbOrFail();
       const testRow = await db.select().from(tests).where(and(eq(tests.id, input.testId), eq(tests.status, "published"))).limit(1);
       if (!testRow[0]) throw new TRPCError({ code: "NOT_FOUND", message: "This test is not available." });
+      const approvedNoCamera = await db.select({ id: accommodations.id }).from(accommodations).where(and(eq(accommodations.candidateId, ctx.user.id), eq(accommodations.type, "no_camera"), eq(accommodations.status, "approved"), isNull(accommodations.attemptId))).limit(1);
+      const proctoringAlternative = Boolean(approvedNoCamera[0]);
       const prior = await db.select().from(testAttempts).where(and(eq(testAttempts.testId, input.testId), eq(testAttempts.candidateId, ctx.user.id))).limit(1);
-      if (prior[0]) return prior[0];
+      if (prior[0]) return { ...prior[0], proctoringAlternative };
       const expiresAt = new Date(Date.now() + testRow[0].durationMinutes * 60 * 1000);
-      const result = await db.insert(testAttempts).values({ testId: input.testId, candidateId: ctx.user.id, expiresAt });
-      const rows = await db.select().from(testAttempts).where(eq(testAttempts.id, Number(result[0].insertId))).limit(1);
-      return rows[0];
+      const result = await db.insert(testAttempts).values({ testId: input.testId, candidateId: ctx.user.id, expiresAt, testVersion: testRow[0].version });
+      const createdAttemptId = Number(result[0].insertId);
+      const sourceSections = await db.select().from(testSections).where(eq(testSections.testId, input.testId)).orderBy(testSections.sortOrder);
+      for (const sourceSection of sourceSections) {
+        const sectionResult = await db.insert(attemptSectionSnapshots).values({ attemptId: createdAttemptId, originalSectionId: sourceSection.id, title: sourceSection.title, instructions: sourceSection.instructions, sortOrder: sourceSection.sortOrder });
+        const sectionSnapshotId = Number(sectionResult[0].insertId);
+        const sourceQuestions = await db.select().from(testQuestions).where(eq(testQuestions.sectionId, sourceSection.id)).orderBy(testQuestions.sortOrder);
+        if (sourceQuestions.length) await db.insert(attemptQuestionSnapshots).values(sourceQuestions.map(question => ({ attemptId: createdAttemptId, originalQuestionId: question.id, sectionSnapshotId, type: question.type, prompt: question.prompt, guidance: question.guidance, points: question.points, options: question.options, correctAnswers: question.correctAnswers, evaluationGuide: question.evaluationGuide, starterCode: question.starterCode, supportedLanguages: question.supportedLanguages, sortOrder: question.sortOrder })));
+      }
+      const rows = await db.select().from(testAttempts).where(eq(testAttempts.id, createdAttemptId)).limit(1);
+      return { ...rows[0], proctoringAlternative };
     }),
     get: protectedProcedure.input(z.object({ attemptId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       requireCandidate(ctx.user.role);
       const attempt = await ownedCandidateAttempt(ctx.user.id, input.attemptId);
       const db = await dbOrFail();
       const testRow = await db.select().from(tests).where(eq(tests.id, attempt.testId)).limit(1);
-      const sections = await db.select().from(testSections).where(eq(testSections.testId, attempt.testId)).orderBy(testSections.sortOrder);
-      const questionRows = sections.length ? await db.select().from(testQuestions).where(inArray(testQuestions.sectionId, sections.map(section => section.id))).orderBy(testQuestions.sortOrder) : [];
+      const approvedNoCamera = await db.select({ id: accommodations.id }).from(accommodations).where(and(eq(accommodations.candidateId, ctx.user.id), eq(accommodations.type, "no_camera"), eq(accommodations.status, "approved"), or(isNull(accommodations.attemptId), eq(accommodations.attemptId, attempt.id)))).limit(1);
+      const snapshotSections = await db.select().from(attemptSectionSnapshots).where(eq(attemptSectionSnapshots.attemptId, attempt.id)).orderBy(attemptSectionSnapshots.sortOrder);
+      const snapshotQuestions = await db.select().from(attemptQuestionSnapshots).where(eq(attemptQuestionSnapshots.attemptId, attempt.id)).orderBy(attemptQuestionSnapshots.sortOrder);
+      const liveSections = await db.select().from(testSections).where(eq(testSections.testId, attempt.testId)).orderBy(testSections.sortOrder);
+      const liveQuestions = liveSections.length ? await db.select().from(testQuestions).where(inArray(testQuestions.sectionId, liveSections.map(section => section.id))).orderBy(testQuestions.sortOrder) : [];
+      const sections = snapshotSections.length ? snapshotSections.map(section => ({ ...section, id: section.originalSectionId })) : liveSections;
+      const questionRows = snapshotQuestions.length ? snapshotQuestions.map(question => ({ ...question, id: question.originalQuestionId, sectionId: question.sectionSnapshotId })) : liveQuestions;
       const answers = await db.select().from(attemptAnswers).where(eq(attemptAnswers.attemptId, attempt.id));
       const safeQuestions = questionRows.map(({ correctAnswers, evaluationGuide, ...question }) => question);
-      return { attempt, test: testRow[0], sections, questions: safeQuestions, answers };
+      return { attempt, test: testRow[0], sections, questions: safeQuestions, answers, proctoringAlternative: Boolean(approvedNoCamera[0]) };
     }),
     saveAnswer: protectedProcedure.input(z.object({
       attemptId: z.number().int().positive(), questionId: z.number().int().positive(), textAnswer: z.string().max(20000).nullable().optional(),
@@ -193,7 +246,7 @@ export const candidateRouter = router({
     })).mutation(async ({ ctx, input }) => {
       requireCandidate(ctx.user.role);
       const attempt = await ownedCandidateAttempt(ctx.user.id, input.attemptId);
-      if (attempt.state !== "in_progress" || attempt.expiresAt.getTime() < Date.now()) forbidden("This attempt is no longer open for saving.");
+      if (!canSaveAttemptState(attempt.state) || isAttemptExpired(attempt.expiresAt)) forbidden("This attempt is no longer open for saving.");
       const db = await dbOrFail();
       const questionRows = await db.select({ question: testQuestions, section: testSections }).from(testQuestions).innerJoin(testSections, eq(testQuestions.sectionId, testSections.id)).where(eq(testQuestions.id, input.questionId)).limit(1);
       if (!questionRows[0] || questionRows[0].section.testId !== attempt.testId) forbidden();
@@ -201,13 +254,29 @@ export const candidateRouter = router({
       await db.insert(attemptAnswers).values(values).onDuplicateKeyUpdate({ set: { ...values, savedAt: new Date() } });
       return { savedAt: new Date() };
     }),
+    reportTechnicalIssue: protectedProcedure.input(z.object({ attemptId: z.number().int().positive(), reason: z.string().trim().min(5).max(2000) })).mutation(async ({ ctx, input }) => {
+      requireCandidate(ctx.user.role);
+      const attempt = await ownedCandidateAttempt(ctx.user.id, input.attemptId);
+      if (!canReportTechnicalIssue(attempt.state)) forbidden("This attempt can no longer be paused.");
+      const db = await dbOrFail();
+      await db.update(testAttempts).set({ state: "paused_for_technical_issue", technicalIssueReason: input.reason }).where(eq(testAttempts.id, input.attemptId));
+      await db.insert(auditLogs).values({ actorUserId: ctx.user.id, action: "attempt.technical_issue_reported", entityType: "attempt", entityId: input.attemptId, detail: input.reason });
+      return { success: true, state: "paused_for_technical_issue" as const };
+    }),
     submit: protectedProcedure.input(z.object({ attemptId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       requireCandidate(ctx.user.role);
       const attempt = await ownedCandidateAttempt(ctx.user.id, input.attemptId);
-      if (attempt.state !== "in_progress") forbidden("This attempt has already been submitted.");
+      if (attempt.state !== "in_progress" && attempt.state !== "paused_for_technical_issue") forbidden("This attempt has already been submitted.");
+      if (isAttemptExpired(attempt.expiresAt)) {
+        const expiredDb = await dbOrFail();
+        await expiredDb.update(testAttempts).set({ state: "expired" }).where(eq(testAttempts.id, input.attemptId));
+        forbidden("This attempt expired before submission.");
+      }
       const db = await dbOrFail();
+      const snapshotQuestions = await db.select().from(attemptQuestionSnapshots).where(eq(attemptQuestionSnapshots.attemptId, attempt.id)).orderBy(attemptQuestionSnapshots.sortOrder);
       const sections = await db.select().from(testSections).where(eq(testSections.testId, attempt.testId));
-      const questionRows = sections.length ? await db.select().from(testQuestions).where(inArray(testQuestions.sectionId, sections.map(section => section.id))) : [];
+      const liveQuestionRows = sections.length ? await db.select().from(testQuestions).where(inArray(testQuestions.sectionId, sections.map(section => section.id))) : [];
+      const questionRows = snapshotQuestions.length ? snapshotQuestions : liveQuestionRows;
       const answers = await db.select().from(attemptAnswers).where(eq(attemptAnswers.attemptId, attempt.id));
       const answerMap = new Map(answers.map(answer => [answer.questionId, answer]));
       const autoQuestions = questionRows.filter(question => question.type === "multiple_choice" && question.correctAnswers);
@@ -220,6 +289,7 @@ export const candidateRouter = router({
       const autoScore = total ? Math.round((earned / total) * 100) : null;
       const priorityScore = computePriority(autoScore, null, attempt.integrityFlags);
       await db.update(testAttempts).set({ state: "submitted", submittedAt: new Date(), autoScore, priorityScore, applicationStatus: "under review" }).where(eq(testAttempts.id, attempt.id));
+      await db.insert(auditLogs).values({ actorUserId: ctx.user.id, action: "attempt.submitted", entityType: "attempt", entityId: attempt.id, detail: `testVersion=${attempt.testVersion}` });
       const testRow = await db.select().from(tests).where(eq(tests.id, attempt.testId)).limit(1);
       const members = testRow[0] ? await db.select({ userId: companyMembers.userId, email: users.email }).from(companyMembers).innerJoin(users, eq(companyMembers.userId, users.id)).where(eq(companyMembers.companyId, testRow[0].companyId)) : [];
       for (const member of members) {
@@ -239,6 +309,37 @@ export const candidateRouter = router({
       requireCandidate(ctx.user.role);
       const db = await dbOrFail();
       return db.select({ comment: codeReviewComments, attempt: testAttempts, test: tests, answer: attemptAnswers, question: testQuestions }).from(codeReviewComments).innerJoin(testAttempts, eq(codeReviewComments.attemptId, testAttempts.id)).innerJoin(tests, eq(testAttempts.testId, tests.id)).innerJoin(attemptAnswers, eq(codeReviewComments.attemptAnswerId, attemptAnswers.id)).innerJoin(testQuestions, eq(attemptAnswers.questionId, testQuestions.id)).where(and(eq(testAttempts.candidateId, ctx.user.id), inArray(testAttempts.applicationStatus, ["accepted", "rejected"]))).orderBy(desc(codeReviewComments.createdAt));
+    }),
+  }),
+  appeals: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      requireCandidate(ctx.user.role);
+      const db = await dbOrFail();
+      return db.select().from(appeals).where(eq(appeals.candidateId, ctx.user.id)).orderBy(desc(appeals.createdAt));
+    }),
+    create: protectedProcedure.input(z.object({ attemptId: z.number().int().positive(), reason: z.string().trim().min(20).max(4000) })).mutation(async ({ ctx, input }) => {
+      requireCandidate(ctx.user.role);
+      const attempt = await ownedCandidateAttempt(ctx.user.id, input.attemptId);
+      if (!["accepted", "rejected"].includes(attempt.applicationStatus)) forbidden("Appeals open after a final review decision.");
+      const db = await dbOrFail();
+      const result = await db.insert(appeals).values({ attemptId: input.attemptId, candidateId: ctx.user.id, reason: input.reason });
+      await db.insert(auditLogs).values({ actorUserId: ctx.user.id, action: "appeal.created", entityType: "attempt", entityId: input.attemptId, detail: input.reason });
+      return { appealId: Number(result[0].insertId), status: "open" as const };
+    }),
+  }),
+  accommodations: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      requireCandidate(ctx.user.role);
+      const db = await dbOrFail();
+      return db.select().from(accommodations).where(eq(accommodations.candidateId, ctx.user.id)).orderBy(desc(accommodations.createdAt));
+    }),
+    request: protectedProcedure.input(z.object({ attemptId: z.number().int().positive().nullable().optional(), type: z.enum(["extra_time", "no_camera", "screen_reader", "keyboard_only", "text_scaling", "high_contrast", "language_support", "other"]), details: z.string().trim().max(2000).nullable().optional() })).mutation(async ({ ctx, input }) => {
+      requireCandidate(ctx.user.role);
+      if (input.attemptId) await ownedCandidateAttempt(ctx.user.id, input.attemptId);
+      const db = await dbOrFail();
+      const result = await db.insert(accommodations).values({ candidateId: ctx.user.id, attemptId: input.attemptId ?? null, type: input.type, details: input.details ?? null });
+      await db.insert(auditLogs).values({ actorUserId: ctx.user.id, action: "accommodation.requested", entityType: "candidate", entityId: ctx.user.id, detail: `${input.type}: ${input.details ?? ""}` });
+      return { requestId: Number(result[0].insertId), status: "requested" as const };
     }),
   }),
 });
@@ -322,7 +423,7 @@ export const companyRouter = router({
       const membership = await getCompanyForUser(ctx.user.id);
       if (!membership) forbidden("Create a company profile before publishing a test.");
       const db = await dbOrFail();
-      const result = await db.insert(tests).values({ companyId: membership.company.id, title: input.title, jobTitle: input.jobTitle ?? input.title, summary: input.summary, field: input.field, level: input.level, durationMinutes: input.durationMinutes, status: input.status, proctoringMode: input.proctoringMode });
+      const result = await db.insert(tests).values({ companyId: membership.company.id, title: input.title, jobTitle: input.jobTitle ?? input.title, summary: input.summary, field: input.field, level: input.level, durationMinutes: input.durationMinutes, status: input.status, proctoringMode: input.proctoringMode, version: 1, immutable: input.status === "published", publishedAt: input.status === "published" ? new Date() : null });
       const testId = Number(result[0].insertId);
       for (let sectionIndex = 0; sectionIndex < input.sections.length; sectionIndex += 1) {
         const section = input.sections[sectionIndex];
@@ -346,16 +447,17 @@ export const companyRouter = router({
       const membership = await getCompanyForUser(ctx.user.id);
       if (!membership) return [];
       const db = await dbOrFail();
-      return db.select({ attempt: testAttempts, test: tests, candidate: users, profile: candidateProfiles }).from(testAttempts).innerJoin(tests, eq(testAttempts.testId, tests.id)).innerJoin(users, eq(testAttempts.candidateId, users.id)).leftJoin(candidateProfiles, eq(candidateProfiles.userId, users.id)).where(eq(tests.companyId, membership.company.id)).orderBy(desc(testAttempts.priorityScore));
+      return db.select({ attempt: testAttempts, test: tests, candidate: users, profile: candidateProfiles }).from(testAttempts).innerJoin(tests, eq(testAttempts.testId, tests.id)).innerJoin(users, eq(testAttempts.candidateId, users.id)).leftJoin(candidateProfiles, eq(candidateProfiles.userId, users.id)).where(eq(tests.companyId, membership.company.id)).orderBy(desc(testAttempts.updatedAt));
     }),
-    review: protectedProcedure.input(z.object({ attemptId: z.number().int().positive(), score: z.number().int().min(0).max(100), decision: applicationStatus, notes: z.string().max(6000).nullable() })).mutation(async ({ ctx, input }) => {
+    review: protectedProcedure.input(z.object({ attemptId: z.number().int().positive(), score: z.number().int().min(0).max(100), decision: applicationStatus, rationale: z.string().trim().min(10).max(6000), evidenceReference: z.string().trim().max(1000).nullable().optional(), notes: z.string().max(6000).nullable().optional() })).mutation(async ({ ctx, input }) => {
       requireCompany(ctx.user.role);
       const owned = await ownedCompanyAttempt(ctx.user.id, input.attemptId);
       if (owned.attempt.state !== "submitted") forbidden("Only submitted attempts may be reviewed.");
       const db = await dbOrFail();
       const priorityScore = computePriority(owned.attempt.autoScore, input.score, owned.attempt.integrityFlags);
       await db.update(testAttempts).set({ reviewerScore: input.score, applicationStatus: input.decision, priorityScore }).where(eq(testAttempts.id, input.attemptId));
-      await db.insert(reviews).values({ attemptId: input.attemptId, reviewerUserId: ctx.user.id, score: input.score, decision: input.decision, notes: input.notes ?? null }).onDuplicateKeyUpdate({ set: { reviewerUserId: ctx.user.id, score: input.score, decision: input.decision, notes: input.notes ?? null } });
+      await db.insert(reviews).values({ attemptId: input.attemptId, reviewerUserId: ctx.user.id, score: input.score, decision: input.decision, rationale: input.rationale, evidenceReference: input.evidenceReference ?? null, notes: input.notes ?? input.rationale }).onDuplicateKeyUpdate({ set: { reviewerUserId: ctx.user.id, score: input.score, decision: input.decision, rationale: input.rationale, evidenceReference: input.evidenceReference ?? null, notes: input.notes ?? input.rationale, reviewStatus: "completed" } });
+      await db.insert(auditLogs).values({ actorUserId: ctx.user.id, action: "review.decision_recorded", entityType: "attempt", entityId: input.attemptId, detail: `decision=${input.decision}; rationale=${input.rationale}` });
       if (input.decision === "accepted" || input.decision === "rejected") {
         const [feedbackCount] = await db.select({ value: count() }).from(codeReviewComments).where(eq(codeReviewComments.attemptId, input.attemptId));
         const notificationKey = `feedback-published-attempt-${input.attemptId}`;
@@ -371,8 +473,12 @@ export const companyRouter = router({
       requireCompany(ctx.user.role);
       const owned = await ownedCompanyAttempt(ctx.user.id, input.attemptId);
       const db = await dbOrFail();
-      const sections = await db.select().from(testSections).where(eq(testSections.testId, owned.test.id));
-      const questions = sections.length ? await db.select().from(testQuestions).where(inArray(testQuestions.sectionId, sections.map(section => section.id))) : [];
+      const snapshotSections = await db.select().from(attemptSectionSnapshots).where(eq(attemptSectionSnapshots.attemptId, input.attemptId)).orderBy(attemptSectionSnapshots.sortOrder);
+      const snapshotQuestions = await db.select().from(attemptQuestionSnapshots).where(eq(attemptQuestionSnapshots.attemptId, input.attemptId)).orderBy(attemptQuestionSnapshots.sortOrder);
+      const liveSections = await db.select().from(testSections).where(eq(testSections.testId, owned.test.id));
+      const liveQuestions = liveSections.length ? await db.select().from(testQuestions).where(inArray(testQuestions.sectionId, liveSections.map(section => section.id))) : [];
+      const sections = snapshotSections.length ? snapshotSections.map(section => ({ ...section, id: section.originalSectionId })) : liveSections;
+      const questions = snapshotQuestions.length ? snapshotQuestions.map(question => ({ ...question, id: question.originalQuestionId, sectionId: question.sectionSnapshotId })) : liveQuestions;
       const answers = await db.select().from(attemptAnswers).where(eq(attemptAnswers.attemptId, input.attemptId));
       const session = await db.select().from(proctoringSessions).where(eq(proctoringSessions.attemptId, input.attemptId)).limit(1);
       const events = session[0] ? await db.select().from(proctoringEvents).where(eq(proctoringEvents.sessionId, session[0].id)).orderBy(proctoringEvents.occurredAt) : [];
@@ -402,6 +508,7 @@ export const proctoringRouter = router({
     if (!session[0]) forbidden();
     await db.insert(proctoringEvents).values({ sessionId: input.sessionId, eventType: input.eventType, detail: input.detail ?? null });
     if (isIntegrityFlagEvent(input.eventType)) await db.update(testAttempts).set({ integrityFlags: sql`${testAttempts.integrityFlags} + 1` }).where(eq(testAttempts.id, session[0].attemptId));
+    await db.insert(auditLogs).values({ actorUserId: ctx.user.id, action: "proctoring.technical_signal", entityType: "proctoring_session", entityId: input.sessionId, detail: `${input.eventType}: contextual signal only` });
     return { success: true };
   }),
   finish: protectedProcedure.input(z.object({ sessionId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
@@ -432,11 +539,16 @@ export const fileRouter = router({
     requireCandidate(ctx.user.role);
     const data = Buffer.from(input.dataBase64, "base64");
     if (!data.length || data.length > 10 * 1024 * 1024) throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "Files must be smaller than 10 MB." });
+    const allowedMimeTypes = new Set(["application/pdf", "text/plain", "image/png", "image/jpeg", "image/webp", "video/webm", "video/mp4"]);
+    if (!allowedMimeTypes.has(input.mimeType)) throw new TRPCError({ code: "BAD_REQUEST", message: "This file type is not allowed for assessment evidence." });
+    if (!hasValidFileSignature(data, input.mimeType)) throw new TRPCError({ code: "BAD_REQUEST", message: "File content does not match the declared type." });
+    const sha256 = createHash("sha256").update(data).digest("hex");
     const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const stored = await storagePut(`attempts/${attempt.id}/${ctx.user.id}/${safeName}`, data, input.mimeType);
     const db = await dbOrFail();
-    const result = await db.insert(fileAssets).values({ ownerUserId: ctx.user.id, attemptId: attempt.id, category: input.category, storageKey: stored.key, originalName: input.fileName, mimeType: input.mimeType, byteSize: data.length });
+    const result = await db.insert(fileAssets).values({ ownerUserId: ctx.user.id, attemptId: attempt.id, category: input.category, storageKey: stored.key, originalName: input.fileName, mimeType: input.mimeType, byteSize: data.length, sha256, securityStatus: "pending", expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) });
     const assetId = Number(result[0].insertId);
+    await db.insert(auditLogs).values({ actorUserId: ctx.user.id, action: "file.uploaded_pending_security", entityType: "file_asset", entityId: assetId, detail: `category=${input.category};sha256=${sha256}` });
     if (input.category === "camera_recording") {
       await db.update(proctoringSessions).set({ cameraRecordingAssetId: assetId }).where(eq(proctoringSessions.attemptId, attempt.id));
     }
@@ -444,6 +556,14 @@ export const fileRouter = router({
       await db.update(proctoringSessions).set({ screenRecordingAssetId: assetId }).where(eq(proctoringSessions.attemptId, attempt.id));
     }
     return { assetId, fileName: input.fileName };
+  }),
+  reviewSecurity: protectedProcedure.input(z.object({ assetId: z.number().int().positive(), status: z.enum(["pending", "available", "quarantined", "rejected"]) })).mutation(async ({ ctx, input }) => {
+    requireSupervisor(ctx.user.role);
+    const db = await dbOrFail();
+    const result = await db.update(fileAssets).set({ securityStatus: input.status }).where(eq(fileAssets.id, input.assetId));
+    if (!result[0].affectedRows) throw new TRPCError({ code: "NOT_FOUND", message: "File not found." });
+    await db.insert(auditLogs).values({ actorUserId: ctx.user.id, action: "file.security_status_changed", entityType: "file_asset", entityId: input.assetId, detail: `status=${input.status}` });
+    return { success: true, status: input.status };
   }),
   secureAccess: protectedProcedure.input(z.object({ assetId: z.number().int().positive() })).query(async ({ ctx, input }) => {
     const db = await dbOrFail();
@@ -456,6 +576,8 @@ export const fileRouter = router({
     }
     const allowed = canAccessAttemptAsset({ role: ctx.user.role, requestingUserId: ctx.user.id, assetOwnerUserId: asset[0].ownerUserId, isCompanyMember: companyMember });
     if (!allowed) forbidden();
+    if (asset[0].securityStatus !== "available" || (asset[0].expiresAt && asset[0].expiresAt.getTime() < Date.now())) forbidden("This file is not currently available.");
+    await db.insert(auditLogs).values({ actorUserId: ctx.user.id, action: "file.secure_access", entityType: "file_asset", entityId: asset[0].id, detail: `category=${asset[0].category}` });
     const url = await storageGetSignedUrl(asset[0].storageKey);
     return { url, fileName: asset[0].originalName, mimeType: asset[0].mimeType };
   }),

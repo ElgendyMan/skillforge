@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { z } from "zod";
-import { attemptAnswers, candidateAnnotations, candidateProfiles, codeReviewComments, comparisonFilterTemplates, notifications, testAttempts, testQuestions, testSections, tests, users } from "../../drizzle/schema";
+import { attemptAnswers, attemptQuestionSnapshots, candidateAnnotations, candidateProfiles, codeReviewComments, comparisonFilterTemplates, notifications, testAttempts, testQuestions, testSections, tests, users } from "../../drizzle/schema";
 import { getCompanyForUser, getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 
@@ -39,7 +39,10 @@ async function comparisonRowsForCompany(userId: number, filters: ComparisonFilte
   const sectionTestId = new Map(sections.map(section => [section.id, section.testId]));
   const questionTypesByTest = new Map<number, ComparisonQuestionType[]>();
   for (const question of questions) { const testId = sectionTestId.get(question.sectionId); if (testId) questionTypesByTest.set(testId, Array.from(new Set([...(questionTypesByTest.get(testId) ?? []), question.type]))); }
-  const enriched = rows.map(row => ({ ...row, questionTypes: questionTypesByTest.get(row.test.id) ?? [] }));
+  const snapshotQuestions = rows.length ? await db.select().from(attemptQuestionSnapshots).where(inArray(attemptQuestionSnapshots.attemptId, rows.map(row => row.attempt.id))) : [];
+  const questionTypesByAttempt = new Map<number, ComparisonQuestionType[]>();
+  for (const question of snapshotQuestions) questionTypesByAttempt.set(question.attemptId, Array.from(new Set([...(questionTypesByAttempt.get(question.attemptId) ?? []), question.type])));
+  const enriched = rows.map(row => ({ ...row, questionTypes: questionTypesByAttempt.get(row.attempt.id) ?? questionTypesByTest.get(row.test.id) ?? [] }));
   return { company: company.company, rows: filters.questionType ? enriched.filter(row => row.questionTypes.includes(filters.questionType!)) : enriched };
 }
 
@@ -57,7 +60,7 @@ export const reviewToolsRouter = router({
   comparisonCandidates: protectedProcedure.input(comparisonFilterInput).query(async ({ ctx, input }) => {
     requireCompany(ctx.user.role);
     const { rows } = await comparisonRowsForCompany(ctx.user.id, input);
-    return rows.sort((a, b) => b.attempt.priorityScore - a.attempt.priorityScore);
+    return rows.sort((a, b) => (b.attempt.submittedAt?.getTime() ?? 0) - (a.attempt.submittedAt?.getTime() ?? 0));
   }),
   comparison: protectedProcedure.input(z.object({ attemptIds: z.array(z.number().int().positive()).min(2).max(4) })).query(async ({ ctx, input }) => {
     requireCompany(ctx.user.role);
