@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-11-23T13:55:57.876Z",
+  "sourceCommit": "2c569e4c1945c5fe02b05821bba28c95e4857205",
+  "root": "project-export",
+  "excluded": [
+    ".git",
+    ".project-config.json",
+    ".env",
+    ".env.local",
+    ".env.development.local",
+    ".env.test.local",
+    ".env.production.local",
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    "test-results",
+    ".manus-logs",
+    "client/public/__manus__",
+    "project-export",
+    "project-export.zip"
+  ],
+  "notes": [
+    "No credentials, environment files, Manus project metadata, build output, logs, node_modules, or database dumps are included.",
+    "supabase/migrations/00000000000000_skillforge_baseline.sql is a reviewed migration starting point, not an automatic production conversion."
+  ]
+}

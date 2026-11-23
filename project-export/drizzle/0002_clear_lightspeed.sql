@@ -1,0 +1,1 @@
+ALTER TABLE `testAttempts` MODIFY COLUMN `applicationStatus` enum('accepted','rejected','under review') NOT NULL DEFAULT 'under review';
