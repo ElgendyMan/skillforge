@@ -40,44 +40,48 @@ await rm(zipPath, { force: true });
 await mkdir(output, { recursive: true });
 await copyTree(project, output);
 
-const manifest = {
-  generatedAt: new Date().toISOString(),
-  sourceCommit: execFileSync("git", ["rev-parse", "HEAD"], { cwd: project, encoding: "utf8" }).trim(),
-  root: "project-export",
-  excluded,
-  notes: [
-    "No credentials, environment files, Manus project metadata, build output, logs, node_modules, or database dumps are included.",
-    "supabase/migrations/00000000000000_skillforge_baseline.sql is a reviewed migration starting point, not an automatic production conversion.",
-  ],
-};
-await writeFile(join(output, "EXPORT_MANIFEST.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-
 const files = [];
-async function addToZip(dir) {
+async function collectFiles(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
-    if (entry.isDirectory()) await addToZip(full);
+    if (entry.isDirectory()) await collectFiles(full);
     else if (entry.isFile()) {
       const rel = relative(project, full).replaceAll("\\", "/");
       files.push(rel);
     }
   }
 }
-await addToZip(output);
-execFileSync("zip", ["-qr", zipPath, "project-export"], { cwd: project, stdio: "inherit" });
+await collectFiles(output);
 
 const suspicious = [];
+const realDataMarkers = [];
 for (const rel of files) {
   const full = join(project, rel);
-  if (rel.endsWith(".json") || /\.(ts|tsx|js|mjs|md|sql|html|css|txt|yml|yaml|toml)$/.test(rel)) {
-    const text = await readFile(full, "utf8");
-    if (secretPattern.test(text)) suspicious.push(rel);
-  }
+  if (!/\.(json|ts|tsx|js|mjs|md|sql|html|css|txt|yml|yaml|toml)$/.test(rel)) continue;
+  const text = await readFile(full, "utf8");
+  if (secretPattern.test(text)) suspicious.push(rel);
+  if (/\.(sql|dump|csv)$/.test(rel) && /(^|\n)\s*(INSERT\s+INTO|CREATE\s+DATABASE)|mysqldump|pg_dump/i.test(text)) realDataMarkers.push(rel);
 }
-if (suspicious.length) {
-  console.error(`Secret-like content found in export: ${suspicious.join(", ")}`);
+if (suspicious.length || realDataMarkers.length) {
+  if (suspicious.length) console.error(`Secret-like content found in export: ${suspicious.join(", ")}`);
+  if (realDataMarkers.length) console.error(`Database-dump-like content found in export: ${realDataMarkers.join(", ")}`);
   process.exitCode = 1;
 } else {
+  const manifest = {
+    generatedAt: new Date().toISOString(),
+    sourceCommit: execFileSync("git", ["rev-parse", "HEAD"], { cwd: project, encoding: "utf8" }).trim(),
+    root: "project-export",
+    includedFiles: files,
+    excluded,
+    notes: [
+      "No credentials, environment files, Manus project metadata, build output, logs, node_modules, or database dumps are included.",
+      "Development fixture generators are source code only; no seeded database or customer data is included.",
+      "supabase/migrations/00000000000000_skillforge_baseline.sql is a reviewed migration starting point, not an automatic production conversion.",
+    ],
+  };
+  await writeFile(join(output, "EXPORT_MANIFEST.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  files.push("project-export/EXPORT_MANIFEST.json");
+  execFileSync("zip", ["-qr", zipPath, "project-export"], { cwd: project, stdio: "inherit" });
   console.log(`Created ${zipPath}`);
   console.log(`Included ${files.length} files under project-export/`);
 }
