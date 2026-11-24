@@ -49,7 +49,7 @@ test.describe("role workspace navigation", () => {
   ]>) {
     test(`${role} visiting the assessment runner gets a safe role or recovery state`, async ({ page }) => {
       await page.setExtraHTTPHeaders({ "x-skillforge-mock-role": role });
-      await page.goto("/attempt/1");
+      await page.goto("/attempt/999999");
       if (role === "candidate") {
         await expect(page.getByText("مش قادرين نفتح المحاولة")).toBeVisible({ timeout: 10_000 });
         await expect(page.getByRole("link", { name: "العودة لمساحة المرشح" })).toHaveAttribute("href", "/candidate");
