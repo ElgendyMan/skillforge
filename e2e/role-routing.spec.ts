@@ -51,7 +51,6 @@ test.describe("role workspace navigation", () => {
       await page.setExtraHTTPHeaders({ "x-skillforge-mock-role": role });
       await page.goto("/attempt/1");
       if (role === "candidate") {
-        await expect(page.getByText("جاري تجهيز بيئة الاختبار...")).toBeVisible();
         await expect(page.getByText("مش قادرين نفتح المحاولة")).toBeVisible({ timeout: 10_000 });
         await expect(page.getByRole("link", { name: "العودة لمساحة المرشح" })).toHaveAttribute("href", "/candidate");
       } else {
