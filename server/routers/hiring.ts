@@ -209,20 +209,22 @@ export const candidateRouter = router({
       if (!testRow[0]) throw new TRPCError({ code: "NOT_FOUND", message: "This test is not available." });
       const approvedNoCamera = await db.select({ id: accommodations.id }).from(accommodations).where(and(eq(accommodations.candidateId, ctx.user.id), eq(accommodations.type, "no_camera"), eq(accommodations.status, "approved"), isNull(accommodations.attemptId))).limit(1);
       const proctoringAlternative = Boolean(approvedNoCamera[0]);
-      const prior = await db.select().from(testAttempts).where(and(eq(testAttempts.testId, input.testId), eq(testAttempts.candidateId, ctx.user.id))).limit(1);
-      if (prior[0]) return { ...prior[0], proctoringAlternative };
-      const expiresAt = new Date(Date.now() + testRow[0].durationMinutes * 60 * 1000);
-      const result = await db.insert(testAttempts).values({ testId: input.testId, candidateId: ctx.user.id, expiresAt, testVersion: testRow[0].version });
-      const createdAttemptId = Number(result[0].insertId);
-      const sourceSections = await db.select().from(testSections).where(eq(testSections.testId, input.testId)).orderBy(testSections.sortOrder);
-      for (const sourceSection of sourceSections) {
-        const sectionResult = await db.insert(attemptSectionSnapshots).values({ attemptId: createdAttemptId, originalSectionId: sourceSection.id, title: sourceSection.title, instructions: sourceSection.instructions, sortOrder: sourceSection.sortOrder });
-        const sectionSnapshotId = Number(sectionResult[0].insertId);
-        const sourceQuestions = await db.select().from(testQuestions).where(eq(testQuestions.sectionId, sourceSection.id)).orderBy(testQuestions.sortOrder);
-        if (sourceQuestions.length) await db.insert(attemptQuestionSnapshots).values(sourceQuestions.map(question => ({ attemptId: createdAttemptId, originalQuestionId: question.id, sectionSnapshotId, type: question.type, prompt: question.prompt, guidance: question.guidance, points: question.points, options: question.options, correctAnswers: question.correctAnswers, evaluationGuide: question.evaluationGuide, starterCode: question.starterCode, supportedLanguages: question.supportedLanguages, sortOrder: question.sortOrder })));
-      }
-      const rows = await db.select().from(testAttempts).where(eq(testAttempts.id, createdAttemptId)).limit(1);
-      return { ...rows[0], proctoringAlternative };
+      return db.transaction(async tx => {
+        const prior = await tx.select().from(testAttempts).where(and(eq(testAttempts.testId, input.testId), eq(testAttempts.candidateId, ctx.user.id))).limit(1);
+        if (prior[0]) return { ...prior[0], proctoringAlternative };
+        const expiresAt = new Date(Date.now() + testRow[0].durationMinutes * 60 * 1000);
+        const result = await tx.insert(testAttempts).values({ testId: input.testId, candidateId: ctx.user.id, expiresAt, testVersion: testRow[0].version });
+        const createdAttemptId = Number(result[0].insertId);
+        const sourceSections = await tx.select().from(testSections).where(eq(testSections.testId, input.testId)).orderBy(testSections.sortOrder);
+        for (const sourceSection of sourceSections) {
+          const sectionResult = await tx.insert(attemptSectionSnapshots).values({ attemptId: createdAttemptId, originalSectionId: sourceSection.id, title: sourceSection.title, instructions: sourceSection.instructions, sortOrder: sourceSection.sortOrder });
+          const sectionSnapshotId = Number(sectionResult[0].insertId);
+          const sourceQuestions = await tx.select().from(testQuestions).where(eq(testQuestions.sectionId, sourceSection.id)).orderBy(testQuestions.sortOrder);
+          if (sourceQuestions.length) await tx.insert(attemptQuestionSnapshots).values(sourceQuestions.map(question => ({ attemptId: createdAttemptId, originalQuestionId: question.id, sectionSnapshotId, type: question.type, prompt: question.prompt, guidance: question.guidance, points: question.points, options: question.options, correctAnswers: question.correctAnswers, evaluationGuide: question.evaluationGuide, starterCode: question.starterCode, supportedLanguages: question.supportedLanguages, sortOrder: question.sortOrder })));
+        }
+        const rows = await tx.select().from(testAttempts).where(eq(testAttempts.id, createdAttemptId)).limit(1);
+        return { ...rows[0], proctoringAlternative };
+      });
     }),
     get: protectedProcedure.input(z.object({ attemptId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       requireCandidate(ctx.user.role);
@@ -356,11 +358,13 @@ export const accountRouter = router({
     const existing = await getCompanyForUser(ctx.user.id);
     if (existing) return { companyId: existing.company.id, activated: false };
     const db = await dbOrFail();
-    const result = await db.insert(companies).values(input);
-    const companyId = Number(result[0].insertId);
-    await db.insert(companyMembers).values({ companyId, userId: ctx.user.id, memberRole: "owner" });
-    await db.update(users).set({ role: "company" }).where(eq(users.id, ctx.user.id));
-    return { companyId, activated: true };
+    return db.transaction(async tx => {
+      const result = await tx.insert(companies).values(input);
+      const companyId = Number(result[0].insertId);
+      await tx.insert(companyMembers).values({ companyId, userId: ctx.user.id, memberRole: "owner" });
+      await tx.update(users).set({ role: "company" }).where(eq(users.id, ctx.user.id));
+      return { companyId, activated: true };
+    });
   }),
 });
 
@@ -374,10 +378,12 @@ export const companyRouter = router({
       requireCompany(ctx.user.role);
       if (await getCompanyForUser(ctx.user.id)) forbidden("This account already belongs to a company.");
       const db = await dbOrFail();
-      const result = await db.insert(companies).values(input);
-      const companyId = Number(result[0].insertId);
-      await db.insert(companyMembers).values({ companyId, userId: ctx.user.id, memberRole: "owner" });
-      return { companyId };
+      return db.transaction(async tx => {
+        const result = await tx.insert(companies).values(input);
+        const companyId = Number(result[0].insertId);
+        await tx.insert(companyMembers).values({ companyId, userId: ctx.user.id, memberRole: "owner" });
+        return { companyId };
+      });
     }),
     update: protectedProcedure.input(z.object({ name: z.string().trim().min(2).max(180), description: z.string().max(5000).nullable(), website: z.string().url().max(500).nullable(), industry: z.string().max(120).nullable() })).mutation(async ({ ctx, input }) => {
       requireCompany(ctx.user.role);
@@ -423,15 +429,17 @@ export const companyRouter = router({
       const membership = await getCompanyForUser(ctx.user.id);
       if (!membership) forbidden("Create a company profile before publishing a test.");
       const db = await dbOrFail();
-      const result = await db.insert(tests).values({ companyId: membership.company.id, title: input.title, jobTitle: input.jobTitle ?? input.title, summary: input.summary, field: input.field, level: input.level, durationMinutes: input.durationMinutes, status: input.status, proctoringMode: input.proctoringMode, version: 1, immutable: input.status === "published", publishedAt: input.status === "published" ? new Date() : null });
-      const testId = Number(result[0].insertId);
-      for (let sectionIndex = 0; sectionIndex < input.sections.length; sectionIndex += 1) {
-        const section = input.sections[sectionIndex];
-        const sectionResult = await db.insert(testSections).values({ testId, title: section.title, instructions: section.instructions ?? null, sortOrder: sectionIndex });
-        const sectionId = Number(sectionResult[0].insertId);
-        if (section.questions.length) await db.insert(testQuestions).values(section.questions.map((question, questionIndex) => ({ sectionId, type: question.type, prompt: question.prompt, guidance: question.guidance ?? null, points: question.points, options: question.options ?? null, correctAnswers: question.correctAnswers ?? null, evaluationGuide: question.evaluationGuide ?? null, starterCode: question.starterCode ?? null, supportedLanguages: question.supportedLanguages ?? null, sortOrder: questionIndex })));
-      }
-      return { testId };
+      return db.transaction(async tx => {
+        const result = await tx.insert(tests).values({ companyId: membership.company.id, title: input.title, jobTitle: input.jobTitle ?? input.title, summary: input.summary, field: input.field, level: input.level, durationMinutes: input.durationMinutes, status: input.status, proctoringMode: input.proctoringMode, version: 1, immutable: input.status === "published", publishedAt: input.status === "published" ? new Date() : null });
+        const testId = Number(result[0].insertId);
+        for (let sectionIndex = 0; sectionIndex < input.sections.length; sectionIndex += 1) {
+          const section = input.sections[sectionIndex];
+          const sectionResult = await tx.insert(testSections).values({ testId, title: section.title, instructions: section.instructions ?? null, sortOrder: sectionIndex });
+          const sectionId = Number(sectionResult[0].insertId);
+          if (section.questions.length) await tx.insert(testQuestions).values(section.questions.map((question, questionIndex) => ({ sectionId, type: question.type, prompt: question.prompt, guidance: question.guidance ?? null, points: question.points, options: question.options ?? null, correctAnswers: question.correctAnswers ?? null, evaluationGuide: question.evaluationGuide ?? null, starterCode: question.starterCode ?? null, supportedLanguages: question.supportedLanguages ?? null, sortOrder: questionIndex })));
+        }
+        return { testId };
+      });
     }),
     mine: protectedProcedure.query(async ({ ctx }) => {
       requireCompany(ctx.user.role);
