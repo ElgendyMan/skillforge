@@ -58,6 +58,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Apply database migrations
+        run: pnpm db:push
+
+      - name: Seed isolated test data
+        run: pnpm exec tsx scripts/seed-mock-data.mjs
+
       - name: TypeScript check
         run: pnpm check
 
@@ -66,12 +72,6 @@ jobs:
 
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
-
-      - name: Apply database migrations
-        run: pnpm db:push
-
-      - name: Seed isolated test data
-        run: pnpm exec tsx scripts/seed-mock-data.mjs
 
       - name: End-to-end tests
         run: pnpm test:e2e
