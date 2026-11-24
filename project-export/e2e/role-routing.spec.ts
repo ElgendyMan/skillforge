@@ -42,4 +42,22 @@ test.describe("role workspace navigation", () => {
       });
     }
   }
+
+  for (const [role, user] of Object.entries(userByRole) as Array<[
+    keyof typeof userByRole,
+    (typeof userByRole)[keyof typeof userByRole]
+  ]>) {
+    test(`${role} visiting the assessment runner gets a safe role or recovery state`, async ({ page }) => {
+      await page.setExtraHTTPHeaders({ "x-skillforge-mock-role": role });
+      await page.goto("/attempt/1");
+      if (role === "candidate") {
+        await expect(page.getByText("جاري تجهيز بيئة الاختبار...")).toBeVisible();
+        await expect(page.getByText("مش قادرين نفتح المحاولة")).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByRole("link", { name: "العودة لمساحة المرشح" })).toHaveAttribute("href", "/candidate");
+      } else {
+        await expect(page.getByRole("heading", { name: "المسار ده مش متاح لحسابك" })).toBeVisible();
+        await expect(page.getByRole("button", { name: `افتح مساحة ${role === "company" ? "الشركة" : "المشرف"}` })).toBeVisible();
+      }
+    });
+  }
 });

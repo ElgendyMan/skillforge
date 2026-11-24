@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-23T14:01:52.319Z",
-  "sourceCommit": "ceeae0e3afb6f8ebaccb454ffa18fb6eae3e7ff1",
+  "generatedAt": "2026-11-24T04:23:02.449Z",
+  "sourceCommit": "7298d73a2c6d824d6309c3000ec11b9ab10457da",
   "root": "project-export",
   "includedFiles": [
     "project-export/.audit-fairness-notes.md",
@@ -142,6 +142,7 @@
     "project-export/scripts/inspect-company.mjs",
     "project-export/scripts/inspect-mock-ui.mjs",
     "project-export/scripts/mock-data-report.mjs",
+    "project-export/scripts/redteam-sweep.mjs",
     "project-export/scripts/seed-mock-data.mjs",
     "project-export/server/_core/context.ts",
     "project-export/server/_core/cookies.ts",

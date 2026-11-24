@@ -84,7 +84,7 @@ function Router() {
       <Route path={"/company/review/:id"}><RoleGate expected="company"><ReviewAttempt /></RoleGate></Route>
       <Route path={"/supervisor"}><RoleGate expected="supervisor"><SupervisorDashboard /></RoleGate></Route>
       <Route path={"/supervisor/attempts"}><RoleGate expected="supervisor"><SupervisorAttempts /></RoleGate></Route>
-      <Route path={"/attempt/:id"} component={TestRunner} />
+      <Route path={"/attempt/:id"}><RoleGate expected="candidate"><TestRunner /></RoleGate></Route>
       <Route path={"/companies/:slug"} component={CompanyPublicPage} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
